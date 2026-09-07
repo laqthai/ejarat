@@ -1,44 +1,1136 @@
-const stats = [
-  { label: 'إجمالي العقود', value: '128', trend: '+12%' },
-  { label: 'العقود النشطة', value: '96', trend: '+8%' },
-  { label: 'المتأخرات', value: '14', trend: '-3%' },
-  { label: 'إجمالي الإيراد', value: '1,248,500', trend: '+15%' },
+import { useEffect, useMemo, useState } from 'react';
+
+const STORAGE_KEY = 'lease-dashboard-v1';
+const LOGIN_KEY = 'lease-dashboard-auth';
+
+const defaultData = {
+  contracts: [
+    { id: 'LG-204', tenant: 'شركة النور', company: 'شركة النور للتجارة', propertyType: 'محل تجاري', property: 'محل رقم 5', address: 'الرياض - حي النرجس', startDate: '2025-01-01', endDate: '2026-10-15', rent: 14000, taxRate: 15, total: 16100, paymentFrequency: 'شهري', paymentCount: 12, status: 'نشط', paymentStatus: 'مكتمل' },
+    { id: 'LG-188', tenant: 'مؤسسة الخليج', company: 'مؤسسة الخليج', propertyType: 'مكتب', property: 'مكتب 2', address: 'جدة - حي الروضة', startDate: '2025-03-10', endDate: '2026-09-28', rent: 11500, taxRate: 15, total: 13225, paymentFrequency: 'كل 6 أشهر', paymentCount: 2, status: 'قريب', paymentStatus: 'جزئي' },
+    { id: 'LG-177', tenant: 'شركة المعالي', company: 'شركة المعالي', propertyType: 'مخزن', property: 'مخزن 8', address: 'الدمام - حي السيف', startDate: '2024-11-12', endDate: '2026-09-10', rent: 9300, taxRate: 15, total: 10695, paymentFrequency: 'سنوي', paymentCount: 1, status: 'متأخر', paymentStatus: 'متأخر' },
+    { id: 'LG-160', tenant: 'أحمد السلمي', company: 'مستأجر فردي', propertyType: 'محل', property: 'محل 12', address: 'المدينة المنورة - حي الصالحية', startDate: '2025-02-01', endDate: '2026-11-02', rent: 6200, taxRate: 15, total: 7130, paymentFrequency: 'شهري', paymentCount: 12, status: 'نشط', paymentStatus: 'مكتمل' }
+  ],
+  payments: [
+    { invoice: 'INV-1045', tenant: 'شركة النور', due: '2026-09-10', amount: 14000, paid: 14000, status: 'مدفوع' },
+    { invoice: 'INV-1046', tenant: 'مؤسسة الخليج', due: '2026-09-15', amount: 11500, paid: 8500, status: 'جزئي' },
+    { invoice: 'INV-1047', tenant: 'شركة المعالي', due: '2026-09-18', amount: 9300, paid: 0, status: 'متأخر' },
+    { invoice: 'INV-1048', tenant: 'أحمد السلمي', due: '2026-09-21', amount: 6200, paid: 6200, status: 'مدفوع' }
+  ],
+  tenants: [
+    { id: '1234567890', name: 'شركة النور', nationality: 'سعودي', phone: '0501234567', company: 'شركة النور للتجارة', status: 'نشط' },
+    { id: '9876543210', name: 'مؤسسة الخليج', nationality: 'سعودي', phone: '0559876543', company: 'مؤسسة الخليج', status: 'نشط' },
+    { id: '4561237890', name: 'شركة المعالي', nationality: 'مصري', phone: '0543219876', company: 'شركة المعالي', status: 'متأخر' },
+    { id: '1234561234', name: 'أحمد السلمي', nationality: 'سعودي', phone: '0561112233', company: 'مستأجر فردي', status: 'نشط' }
+  ],
+  documents: [
+    { name: 'عقد_مؤسسة_الخليج.pdf', type: 'عقد', date: '2026-08-21', owner: 'سارة عبدالله' },
+    { name: 'صورة_محل_5.jpg', type: 'صورة عقار', date: '2026-08-18', owner: 'فريق الإدارة' },
+    { name: 'حوالة_شركة_النور.pdf', type: 'سند تحويل', date: '2026-09-01', owner: 'محمد علي' },
+    { name: 'ملحق_تجديد_الدمام.pdf', type: 'مستند', date: '2026-09-02', owner: 'خالد الشمري' }
+  ],
+  settings: {
+    companyName: 'إيجارات السعودية',
+    email: 'info@ejarat.sa',
+    phone: '+966500000000',
+    currency: 'SAR',
+    alertBeforeEnd: 14,
+    alertBeforeDue: 3,
+    language: 'العربية'
+  }
+};
+
+const navItems = [
+  { key: 'dashboard', label: 'لوحة التحكم' },
+  { key: 'contracts', label: 'العقود' },
+  { key: 'tenants', label: 'المستأجرون' },
+  { key: 'payments', label: 'الدفعات' },
+  { key: 'alerts', label: 'التنبيهات' },
+  { key: 'reports', label: 'التقارير' },
+  { key: 'documents', label: 'المرفقات' },
+  { key: 'settings', label: 'الإعدادات' }
 ];
 
-const alerts = [
-  { type: 'warning', text: 'عقد رقم 204 تنتهي خلال 14 يومًا', time: 'اليوم' },
-  { type: 'danger', text: 'دفعة متجر الرياض متأخرة 3 أيام', time: 'قبل 2 ساعة' },
-  { type: 'info', text: 'تذكير قبل استحقاق دفعة رقم 7', time: 'غدًا' },
-];
+const emptyContractForm = {
+  tenant: '',
+  company: '',
+  propertyType: 'محل تجاري',
+  property: '',
+  address: '',
+  startDate: '',
+  endDate: '',
+  rent: '',
+  taxRate: 15,
+  paymentFrequency: 'شهري',
+  paymentCount: 12,
+  propertyImage: '',
+  contractFile: '',
+  status: 'نشط'
+};
 
-const contracts = [
-  { id: 'LG-204', tenant: 'شركة النور', property: 'محل رقم 5', area: 'الرياض', endDate: '2026-10-15', status: 'نشط', payment: 'مكتمل' },
-  { id: 'LG-188', tenant: 'مؤسسة الخليج', property: 'مكتب 2', area: 'جدة', endDate: '2026-09-28', status: 'قريب', payment: 'جزئي' },
-  { id: 'LG-177', tenant: 'شركة المعالي', property: 'مخزن 8', area: 'الدمام', endDate: '2026-09-10', status: 'متأخر', payment: 'متأخر' },
-  { id: 'LG-160', tenant: 'أحمد السلمي', property: 'محل 12', area: 'المدينة', endDate: '2026-11-02', status: 'نشط', payment: 'مكتمل' },
-];
+const formatMoney = (value) => `${Number(value || 0).toLocaleString('en-US')} ر.س`;
 
-const payments = [
-  { invoice: 'INV-1045', tenant: 'شركة النور', due: '2026-09-10', amount: '14,000', paid: '14,000', status: 'مدفوع' },
-  { invoice: 'INV-1046', tenant: 'مؤسسة الخليج', due: '2026-09-15', amount: '11,500', paid: '8,500', status: 'جزئي' },
-  { invoice: 'INV-1047', tenant: 'شركة المعالي', due: '2026-09-18', amount: '9,300', paid: '0', status: 'متأخر' },
-  { invoice: 'INV-1048', tenant: 'أحمد السلمي', due: '2026-09-21', amount: '6,200', paid: '6,200', status: 'مدفوع' },
-];
-
-const tenants = [
-  { name: 'شركة النور', id: '1234567890', nationality: 'سعودي', phone: '0501234567', company: 'شركة النور للتجارة', status: 'نشط' },
-  { name: 'مؤسسة الخليج', id: '9876543210', nationality: 'سعودي', phone: '0559876543', company: 'مؤسسة الخليج', status: 'نشط' },
-  { name: 'شركة المعالي', id: '4561237890', nationality: 'مصري', phone: '0543219876', company: 'شركة المعالي', status: 'متأخر' },
-];
-
-const reportRows = [
-  { name: 'إيراد شهري', value: '528,000', color: 'green' },
-  { name: 'متأخرات', value: '74,000', color: 'orange' },
-  { name: 'عقود قريبة', value: '12', color: 'blue' },
-  { name: 'مستحقات اليوم', value: '42,000', color: 'red' },
-];
+const getStatusClass = (status) => {
+  if (status === 'نشط' || status === 'مدفوع') return 'success';
+  if (status === 'قريب' || status === 'جزئي' || status === 'مؤجل' || status === 'warning') return 'warning';
+  return 'danger';
+};
 
 function App() {
+  const [data, setData] = useState(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (!saved) return defaultData;
+
+    try {
+      return JSON.parse(saved);
+    } catch {
+      return defaultData;
+    }
+  });
+
+  const [isLoggedIn, setIsLoggedIn] = useState(() => localStorage.getItem(LOGIN_KEY) === 'true');
+  const [activePage, setActivePage] = useState('dashboard');
+  const [selectedContractId, setSelectedContractId] = useState(data.contracts[0]?.id ?? null);
+  const [selectedPaymentInvoice, setSelectedPaymentInvoice] = useState(data.payments[0]?.invoice ?? null);
+  const [receiptPreview, setReceiptPreview] = useState(null);
+  const [contractForm, setContractForm] = useState(emptyContractForm);
+  const [paidAmountInput, setPaidAmountInput] = useState('');
+  const [loginForm, setLoginForm] = useState({ username: 'admin', password: '1234' });
+  const [loginMessage, setLoginMessage] = useState('');
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  }, [data]);
+
+  useEffect(() => {
+    localStorage.setItem(LOGIN_KEY, String(isLoggedIn));
+  }, [isLoggedIn]);
+
+  const totalRevenue = useMemo(
+    () => data.contracts.reduce((sum, contract) => sum + Number(contract.total || 0), 0),
+    [data.contracts]
+  );
+
+  const totalPaid = useMemo(
+    () => data.payments.reduce((sum, item) => sum + Number(item.paid || 0), 0),
+    [data.payments]
+  );
+
+  const selectedContract = useMemo(
+    () => data.contracts.find((item) => item.id === selectedContractId) ?? data.contracts[0],
+    [data.contracts, selectedContractId]
+  );
+
+  const selectedPayment = useMemo(
+    () => data.payments.find((item) => item.invoice === selectedPaymentInvoice) ?? data.payments[0],
+    [data.payments, selectedPaymentInvoice]
+  );
+
+  const alertList = useMemo(() => {
+    const list = [];
+
+    data.contracts.forEach((contract) => {
+      const end = new Date(contract.endDate);
+      const today = new Date();
+      const diffDays = Math.ceil((end - today) / (1000 * 60 * 60 * 24));
+
+      if (diffDays <= 14 && diffDays >= 0) {
+        list.push({ type: 'warning', text: `عقد ${contract.id} ينتهي خلال ${diffDays} يوم`, time: 'اليوم' });
+      }
+
+      if (contract.status === 'متأخر') {
+        list.push({ type: 'danger', text: `العقد ${contract.id} متأخر في السداد`, time: 'مهم' });
+      }
+    });
+
+    data.payments.forEach((payment) => {
+      if (payment.status === 'متأخر') {
+        list.push({ type: 'danger', text: `دفعة ${payment.invoice} متأخرة للمستأجر ${payment.tenant}`, time: 'مهم' });
+      }
+    });
+
+    return list.slice(0, 5);
+  }, [data]);
+
+  const handleLogin = (event) => {
+    event.preventDefault();
+
+    if (loginForm.username === 'admin' && loginForm.password === '1234') {
+      setIsLoggedIn(true);
+      setLoginMessage('');
+      return;
+    }
+
+    setLoginMessage('اسم المستخدم أو كلمة المرور غير صحيحة');
+  };
+
+  const readFileAsDataUrl = (file, field) => {
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => setContractForm((prev) => ({ ...prev, [field]: reader.result }));
+    reader.readAsDataURL(file);
+  };
+
+  const addMonths = (date, months) => {
+    const nextDate = new Date(date);
+    nextDate.setMonth(nextDate.getMonth() + months);
+    return nextDate.toISOString().slice(0, 10);
+  };
+
+  const getFrequencyMonths = (frequency) => {
+    if (frequency === 'سنوي') return 12;
+    if (frequency === 'كل 6 أشهر') return 6;
+    return 1;
+  };
+
+  const savePaymentAmount = (invoice) => {
+    const paid = Math.max(0, Number(paidAmountInput || 0));
+
+    setData((prev) => ({
+      ...prev,
+      payments: prev.payments.map((payment) => {
+        if (payment.invoice !== invoice) return payment;
+        const safePaid = Math.min(paid, Number(payment.amount || 0));
+        const status = safePaid >= Number(payment.amount || 0) ? 'مدفوع' : safePaid > 0 ? 'جزئي' : 'متأخر';
+        return { ...payment, paid: safePaid, status };
+      }),
+      contracts: prev.contracts.map((contract) => {
+        const payment = prev.payments.find((item) => item.invoice === invoice);
+        if (!payment || contract.tenant !== payment.tenant) return contract;
+        const safePaid = Math.min(paid, Number(payment.amount || 0));
+        return { ...contract, paymentStatus: safePaid >= Number(payment.amount || 0) ? 'مكتمل' : safePaid > 0 ? 'جزئي' : 'متأخر' };
+      })
+    }));
+  };
+
+  const addContract = () => {
+    if (!contractForm.tenant || !contractForm.property || !contractForm.address || !contractForm.startDate || !contractForm.endDate || !contractForm.rent) {
+      return;
+    }
+
+    const rent = Number(contractForm.rent || 0);
+    const taxRate = Number(contractForm.taxRate || 0);
+    const total = rent + (rent * taxRate) / 100;
+    const paymentCount = Math.max(1, Number(contractForm.paymentCount || 1));
+    const frequencyMonths = getFrequencyMonths(contractForm.paymentFrequency);
+
+    const newContract = {
+      id: `LG-${Math.floor(Math.random() * 900 + 100)}`,
+      tenant: contractForm.tenant,
+      company: contractForm.company || 'مستأجر جديد',
+      propertyType: contractForm.propertyType,
+      property: contractForm.property,
+      address: contractForm.address,
+      startDate: contractForm.startDate,
+      endDate: contractForm.endDate,
+      rent,
+      taxRate,
+      total,
+      paymentFrequency: contractForm.paymentFrequency,
+      paymentCount,
+      propertyImage: contractForm.propertyImage,
+      contractFile: contractForm.contractFile,
+      status: 'نشط',
+      paymentStatus: 'مكتمل'
+    };
+
+    const newPayments = Array.from({ length: paymentCount }, (_, index) => ({
+      invoice: `INV-${Math.floor(Math.random() * 90000 + 10000)}-${index + 1}`,
+      contractId: newContract.id,
+      tenant: newContract.tenant,
+      due: addMonths(contractForm.startDate, index * frequencyMonths),
+      amount: Math.round((total / paymentCount) * 100) / 100,
+      paid: 0,
+      status: 'متأخر'
+    }));
+
+    setData((prev) => ({
+      ...prev,
+      contracts: [newContract, ...prev.contracts],
+      payments: [...newPayments, ...prev.payments],
+      tenants: [
+        {
+          id: `ID-${Math.floor(Math.random() * 9000 + 1000)}`,
+          name: contractForm.tenant,
+          nationality: 'غير محدد',
+          phone: '0000000000',
+          company: contractForm.company || 'مستأجر جديد',
+          status: 'نشط'
+        },
+        ...prev.tenants
+      ]
+    }));
+
+    setContractForm(emptyContractForm);
+    setActivePage('contracts');
+  };
+
+  const approvePayment = (invoice) => {
+    setData((prev) => ({
+      ...prev,
+      payments: prev.payments.map((payment) => {
+        if (payment.invoice !== invoice) return payment;
+        return { ...payment, status: 'مدفوع', paid: payment.amount };
+      }),
+      contracts: prev.contracts.map((contract) => {
+        const matched = prev.payments.find((payment) => payment.invoice === invoice);
+        if (!matched) return contract;
+        if (contract.tenant !== matched.tenant) return contract;
+        return { ...contract, paymentStatus: 'مكتمل', status: 'نشط' };
+      })
+    }));
+  };
+
+  const postponePayment = (invoice, days = 7) => {
+    setData((prev) => ({
+      ...prev,
+      payments: prev.payments.map((payment) => {
+        if (payment.invoice !== invoice) return payment;
+
+        const currentDate = new Date(payment.due);
+        currentDate.setDate(currentDate.getDate() + days);
+
+        return {
+          ...payment,
+          due: currentDate.toISOString().slice(0, 10),
+          status: 'مؤجل'
+        };
+      }),
+      contracts: prev.contracts.map((contract) => {
+        const matched = prev.payments.find((payment) => payment.invoice === invoice);
+        if (!matched || contract.tenant !== matched.tenant) return contract;
+        return { ...contract, status: 'قريب', paymentStatus: 'مؤجل' };
+      })
+    }));
+  };
+
+  const renderDashboard = () => (
+    <>
+      <section className="hero-panel">
+        <div>
+          <p className="eyebrow">نظام متابعة العقود</p>
+          <h1>لوحة التحكم الإدارية</h1>
+        </div>
+        <button className="primary-btn" onClick={() => setActivePage('contracts')}>+ إضافة عقد جديد</button>
+      </section>
+
+      <section className="stats-grid">
+        <article className="stat-card">
+          <span>إجمالي العقود</span>
+          <strong>{data.contracts.length}</strong>
+          <small>+12%</small>
+        </article>
+        <article className="stat-card">
+          <span>العقود النشطة</span>
+          <strong>{data.contracts.filter((item) => item.status === 'نشط').length}</strong>
+          <small>+8%</small>
+        </article>
+        <article className="stat-card">
+          <span>المتأخرات</span>
+          <strong>{data.contracts.filter((item) => item.status === 'متأخر').length}</strong>
+          <small>-3%</small>
+        </article>
+        <article className="stat-card">
+          <span>إجمالي الإيراد</span>
+          <strong>{formatMoney(totalRevenue)}</strong>
+          <small>+15%</small>
+        </article>
+      </section>
+
+      <section className="content-grid">
+        <div className="panel large-panel">
+          <div className="panel-head">
+            <h3>العقود الأخيرة</h3>
+            <button className="link-btn" onClick={() => setActivePage('contracts')}>عرض الكل</button>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>رقم العقد</th>
+                <th>المستأجر</th>
+                <th>العقار</th>
+                <th>المنطقة</th>
+                <th>تاريخ الانتهاء</th>
+                <th>الحالة</th>
+                <th>الدفع</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.contracts.slice(0, 4).map((contract) => (
+                <tr key={contract.id}>
+                  <td>{contract.id}</td>
+                  <td>{contract.tenant}</td>
+                  <td>{contract.property}</td>
+                  <td>{contract.address}</td>
+                  <td>{contract.endDate}</td>
+                  <td><span className={`status-badge ${getStatusClass(contract.status)}`}>{contract.status}</span></td>
+                  <td><span className={`status-badge ${getStatusClass(contract.paymentStatus)}`}>{contract.paymentStatus}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="panel">
+          <div className="panel-head">
+            <h3>التنبيهات</h3>
+            <button className="link-btn" onClick={() => setActivePage('alerts')}>جميع</button>
+          </div>
+
+          <div className="alerts-list">
+            {alertList.map((alert, index) => (
+              <div key={`${alert.text}-${index}`} className={`alert-item ${alert.type}`}>
+                <div className="dot" />
+                <div>
+                  <p>{alert.text}</p>
+                  <small>{alert.time}</small>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="lower-grid">
+        <div className="panel">
+          <div className="panel-head">
+            <h3>جدول الدفعات</h3>
+            <button className="link-btn" onClick={() => setActivePage('payments')}>تفاصيل</button>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>الفاتورة</th>
+                <th>المستأجر</th>
+                <th>تاريخ الاستحقاق</th>
+                <th>المبلغ</th>
+                <th>الحالة</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.payments.map((pay) => (
+                <tr key={pay.invoice}>
+                  <td>{pay.invoice}</td>
+                  <td>{pay.tenant}</td>
+                  <td>{pay.due}</td>
+                  <td>{formatMoney(pay.amount)}</td>
+                  <td><span className={`status-badge ${getStatusClass(pay.status)}`}>{pay.status}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="panel">
+          <div className="panel-head">
+            <h3>المستأجرون</h3>
+            <button className="link-btn" onClick={() => setActivePage('tenants')}>عرض</button>
+          </div>
+
+          <div className="tenant-list">
+            {data.tenants.slice(0, 4).map((tenant) => (
+              <div className="tenant-item" key={tenant.id}>
+                <div className="tenant-info">
+                  <strong>{tenant.name}</strong>
+                  <small>{tenant.company}</small>
+                </div>
+                <span className={`mini-tag ${tenant.status === 'نشط' ? 'success' : 'danger'}`}>{tenant.status}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="report-section">
+        <div className="panel full-width-panel">
+          <div className="panel-head">
+            <h3>ملخص الأداء</h3>
+          </div>
+
+          <div className="report-grid">
+            <div className="report-card green">
+              <span>إيراد شهري</span>
+              <strong>{formatMoney(528000)}</strong>
+            </div>
+            <div className="report-card orange">
+              <span>متأخرات</span>
+              <strong>{formatMoney(74000)}</strong>
+            </div>
+            <div className="report-card blue">
+              <span>عقود قريبة</span>
+              <strong>{12}</strong>
+            </div>
+            <div className="report-card red">
+              <span>مستحقات اليوم</span>
+              <strong>{formatMoney(42000)}</strong>
+            </div>
+          </div>
+        </div>
+      </section>
+    </>
+  );
+
+  const renderContractDetail = () => {
+    if (!selectedContract) {
+      return (
+        <div className="page-block">
+          <div className="panel">
+            <h3>لا يوجد عقد محدد</h3>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="page-block">
+        <div className="section-header">
+          <h2>تفاصيل العقد</h2>
+          <div className="inline-actions">
+            <button className="secondary-btn small" onClick={() => setActivePage('contracts')}>العودة</button>
+            <button className="primary-btn small">تحديث البيانات</button>
+          </div>
+        </div>
+
+        <div className="detail-summary">
+          <div className="panel detail-panel">
+            <div className="detail-header">
+              <div>
+                <p className="eyebrow">رقم العقد</p>
+                <h3>{selectedContract.id}</h3>
+              </div>
+              <span className={`status-badge ${getStatusClass(selectedContract.status)}`}>{selectedContract.status}</span>
+            </div>
+
+            <div className="detail-grid">
+              <div><span>اسم المستأجر</span><strong>{selectedContract.tenant}</strong></div>
+              <div><span>اسم الشركة</span><strong>{selectedContract.company}</strong></div>
+              <div><span>نوع العقار</span><strong>{selectedContract.propertyType}</strong></div>
+              <div><span>اسم العقار</span><strong>{selectedContract.property}</strong></div>
+              <div><span>العنوان</span><strong>{selectedContract.address}</strong></div>
+              <div><span>تاريخ البداية</span><strong>{selectedContract.startDate}</strong></div>
+              <div><span>تاريخ النهاية</span><strong>{selectedContract.endDate}</strong></div>
+              <div><span>قيمة الإيجار</span><strong>{formatMoney(selectedContract.rent)}</strong></div>
+              <div><span>ضريبة القيمة المضافة</span><strong>{selectedContract.taxRate}%</strong></div>
+              <div><span>الإجمالي</span><strong>{formatMoney(selectedContract.total)}</strong></div>
+              <div><span>دورية الدفعات</span><strong>{selectedContract.paymentFrequency || 'شهري'}</strong></div>
+              <div><span>عدد الدفعات</span><strong>{selectedContract.paymentCount || 'غير محدد'}</strong></div>
+            </div>
+          </div>
+
+          <div className="panel">
+            <h3>خريطة العقار</h3>
+            {selectedContract.propertyImage && <img src={selectedContract.propertyImage} alt="صورة العقار" className="property-image" />}
+            <div className="map-box">
+              <span>📍</span>
+              <p>{selectedContract.address}</p>
+            </div>
+            <div className="form-grid small-gap">
+              <label><span>موقع العقار</span><input type="text" value="الرياض - حي النرجس" readOnly /></label>
+              <label><span>الإحداثيات</span><input type="text" value="24.7136, 46.6753" readOnly /></label>
+            </div>
+            {selectedContract.contractFile && <div className="uploaded-file detail-file">ملف العقد مرفق</div>}
+          </div>
+        </div>
+
+        <div className="detail-bottom-grid">
+          <div className="panel">
+            <div className="panel-head">
+              <h3>الدفعات</h3>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>الدفعة</th>
+                  <th>المبلغ</th>
+                  <th>الحالة</th>
+                  <th>إجراءات</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.payments.filter((payment) => payment.tenant === selectedContract.tenant).map((payment) => (
+                  <tr key={payment.invoice}>
+                    <td>{payment.invoice}</td>
+                    <td>{formatMoney(payment.amount)}</td>
+                    <td><span className={`status-badge ${getStatusClass(payment.status)}`}>{payment.status}</span></td>
+                    <td>
+                      <div className="mini-actions">
+                        <button className="table-btn" onClick={() => setReceiptPreview(payment)}>السند</button>
+                        <button className="table-btn success-btn" onClick={() => approvePayment(payment.invoice)}>اعتماد</button>
+                        <button className="table-btn warning-btn" onClick={() => postponePayment(payment.invoice, 7)}>تاجيل</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="panel">
+            <div className="panel-head">
+              <h3>المستندات</h3>
+            </div>
+
+            <div className="document-list">
+              {data.documents.slice(0, 3).map((doc) => (
+                <div className="document-item" key={doc.name}>
+                  <span>📄</span>
+                  <div>
+                    <strong>{doc.name}</strong>
+                    <small>{doc.type}</small>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {receiptPreview && (
+          <div className="panel receipt-panel">
+            <div className="panel-head">
+              <h3>عرض السند</h3>
+              <button className="link-btn" onClick={() => setReceiptPreview(null)}>إغلاق</button>
+            </div>
+            <div className="receipt-box">
+              <div className="receipt-head">
+                <strong>سند تحويل</strong>
+                <span>{receiptPreview.invoice}</span>
+              </div>
+              <div className="receipt-info">
+                <div><span>المستأجر</span><strong>{receiptPreview.tenant}</strong></div>
+                <div><span>تاريخ الاستحقاق</span><strong>{receiptPreview.due}</strong></div>
+                <div><span>المبلغ</span><strong>{formatMoney(receiptPreview.amount)}</strong></div>
+                <div><span>الحالة</span><strong>{receiptPreview.status}</strong></div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderPaymentDetail = () => {
+    if (!selectedPayment) {
+      return (
+        <div className="page-block">
+          <div className="panel">
+            <h3>لا توجد دفعة محددة</h3>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="page-block">
+        <div className="section-header">
+          <h2>تفاصيل الدفعة</h2>
+          <div className="inline-actions">
+            <button className="secondary-btn small" onClick={() => setActivePage('payments')}>العودة</button>
+          </div>
+        </div>
+
+        <div className="detail-summary">
+          <div className="panel detail-panel">
+            <div className="detail-header">
+              <div>
+                <p className="eyebrow">رقم الفاتورة</p>
+                <h3>{selectedPayment.invoice}</h3>
+              </div>
+              <span className={`status-badge ${getStatusClass(selectedPayment.status)}`}>{selectedPayment.status}</span>
+            </div>
+
+            <div className="detail-grid">
+              <div><span>اسم المستأجر</span><strong>{selectedPayment.tenant}</strong></div>
+              <div><span>تاريخ الاستحقاق</span><strong>{selectedPayment.due}</strong></div>
+              <div><span>مبلغ العقد</span><strong>{formatMoney(selectedPayment.amount)}</strong></div>
+              <div><span>المبلغ المدفوع</span><strong>{formatMoney(selectedPayment.paid)}</strong></div>
+              <div><span>المتبقي</span><strong>{formatMoney(Math.max(selectedPayment.amount - selectedPayment.paid, 0))}</strong></div>
+              <div><span>الحالة</span><strong>{selectedPayment.status}</strong></div>
+            </div>
+
+            <div className="paid-amount-form">
+              <label>
+                <span>المبلغ المدفوع فعلياً</span>
+                <input
+                  type="number"
+                  min="0"
+                  max={selectedPayment.amount}
+                  value={paidAmountInput === '' ? selectedPayment.paid : paidAmountInput}
+                  onChange={(event) => setPaidAmountInput(event.target.value)}
+                />
+              </label>
+              <button className="primary-btn small" onClick={() => savePaymentAmount(selectedPayment.invoice)}>حفظ المبلغ</button>
+            </div>
+
+            <div className="payment-action-box">
+              <button className="table-btn" onClick={() => setReceiptPreview(selectedPayment)}>السند</button>
+              <button className="table-btn success-btn" onClick={() => approvePayment(selectedPayment.invoice)}>اعتماد التحصيل</button>
+              <button className="table-btn warning-btn" onClick={() => postponePayment(selectedPayment.invoice, 7)}>تاجيل الدفع</button>
+            </div>
+          </div>
+
+          <div className="panel">
+            <h3>معلومات السداد</h3>
+            <div className="map-box">
+              <span>💳</span>
+              <p>مراجعة ومتابعة حالة الدفع</p>
+            </div>
+            <div className="form-grid small-gap">
+              <label><span>طريقة الدفع</span><input type="text" value="حوالة بنكية" readOnly /></label>
+              <label><span>رقم المرجع</span><input type="text" value={selectedPayment.invoice} readOnly /></label>
+            </div>
+          </div>
+        </div>
+
+        {receiptPreview && (
+          <div className="panel receipt-panel">
+            <div className="panel-head">
+              <h3>عرض السند</h3>
+              <button className="link-btn" onClick={() => setReceiptPreview(null)}>إغلاق</button>
+            </div>
+            <div className="receipt-box">
+              <div className="receipt-head">
+                <strong>سند تحويل</strong>
+                <span>{receiptPreview.invoice}</span>
+              </div>
+              <div className="receipt-info">
+                <div><span>المستأجر</span><strong>{receiptPreview.tenant}</strong></div>
+                <div><span>تاريخ الاستحقاق</span><strong>{receiptPreview.due}</strong></div>
+                <div><span>المبلغ</span><strong>{formatMoney(receiptPreview.amount)}</strong></div>
+                <div><span>الحالة</span><strong>{receiptPreview.status}</strong></div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderContracts = () => (
+    <div className="page-block">
+      <div className="section-header">
+        <h2>إدارة العقود</h2>
+        <button className="primary-btn small" onClick={() => setActivePage('dashboard')}>العودة</button>
+      </div>
+
+      <div className="panel full-width-panel">
+        <table>
+          <thead>
+            <tr>
+              <th>رقم العقد</th>
+              <th>المستأجر</th>
+              <th>العقار</th>
+              <th>العنوان</th>
+              <th>تاريخ الانتهاء</th>
+              <th>قيمة العقد</th>
+              <th>الحالة</th>
+              <th>التفاصيل</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.contracts.map((contract) => (
+              <tr key={contract.id}>
+                <td>{contract.id}</td>
+                <td>{contract.tenant}</td>
+                <td>{contract.property}</td>
+                <td>{contract.address}</td>
+                <td>{contract.endDate}</td>
+                <td>{formatMoney(contract.total)}</td>
+                <td><span className={`status-badge ${getStatusClass(contract.status)}`}>{contract.status}</span></td>
+                <td>
+                  <button
+                    className="table-btn"
+                    onClick={() => {
+                      setSelectedContractId(contract.id);
+                      setActivePage('contract-detail');
+                    }}
+                  >
+                    عرض
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="panel mt-20">
+        <h3>إضافة عقد جديد</h3>
+        <div className="grid-two">
+          <label>
+            <span>اسم المستأجر</span>
+            <input type="text" value={contractForm.tenant} onChange={(e) => setContractForm({ ...contractForm, tenant: e.target.value })} />
+          </label>
+          <label>
+            <span>اسم الشركة أو المؤسسة</span>
+            <input type="text" value={contractForm.company} onChange={(e) => setContractForm({ ...contractForm, company: e.target.value })} />
+          </label>
+          <label>
+            <span>نوع العقار</span>
+            <select value={contractForm.propertyType} onChange={(e) => setContractForm({ ...contractForm, propertyType: e.target.value })}>
+              <option value="محل تجاري">محل تجاري</option>
+              <option value="مكتب">مكتب</option>
+              <option value="مخزن">مخزن</option>
+              <option value="مستودع">مستودع</option>
+            </select>
+          </label>
+          <label>
+            <span>اسم العقار</span>
+            <input type="text" value={contractForm.property} onChange={(e) => setContractForm({ ...contractForm, property: e.target.value })} />
+          </label>
+          <label>
+            <span>العنوان</span>
+            <input type="text" value={contractForm.address} onChange={(e) => setContractForm({ ...contractForm, address: e.target.value })} />
+          </label>
+          <label>
+            <span>تاريخ بداية العقد</span>
+            <input type="date" value={contractForm.startDate} onChange={(e) => setContractForm({ ...contractForm, startDate: e.target.value })} />
+          </label>
+          <label>
+            <span>تاريخ انتهاء العقد</span>
+            <input type="date" value={contractForm.endDate} onChange={(e) => setContractForm({ ...contractForm, endDate: e.target.value })} />
+          </label>
+          <label>
+            <span>قيمة العقد قبل الضريبة</span>
+            <input type="number" value={contractForm.rent} onChange={(e) => setContractForm({ ...contractForm, rent: e.target.value })} />
+          </label>
+          <label>
+            <span>نسبة الضريبة</span>
+            <input type="number" value={contractForm.taxRate} onChange={(e) => setContractForm({ ...contractForm, taxRate: e.target.value })} />
+          </label>
+          <label>
+            <span>دورية الدفعات</span>
+            <select value={contractForm.paymentFrequency} onChange={(e) => setContractForm({ ...contractForm, paymentFrequency: e.target.value })}>
+              <option value="شهري">شهري</option>
+              <option value="كل 6 أشهر">كل 6 أشهر</option>
+              <option value="سنوي">سنوي</option>
+            </select>
+          </label>
+          <label>
+            <span>عدد الدفعات</span>
+            <input type="number" min="1" value={contractForm.paymentCount} onChange={(e) => setContractForm({ ...contractForm, paymentCount: e.target.value })} />
+          </label>
+          <label>
+            <span>صورة العقار</span>
+            <input type="file" accept="image/*" onChange={(e) => readFileAsDataUrl(e.target.files?.[0], 'propertyImage')} />
+          </label>
+          <label>
+            <span>ملف العقد</span>
+            <input type="file" accept=".pdf,.doc,.docx,image/*" onChange={(e) => readFileAsDataUrl(e.target.files?.[0], 'contractFile')} />
+          </label>
+        </div>
+
+        {(contractForm.propertyImage || contractForm.contractFile) && (
+          <div className="upload-preview-row">
+            {contractForm.propertyImage && <img src={contractForm.propertyImage} alt="معاينة صورة العقار" className="property-thumb" />}
+            {contractForm.contractFile && <span className="uploaded-file">تم اختيار ملف العقد</span>}
+          </div>
+        )}
+
+        <div className="form-actions mt-20">
+          <button className="primary-btn small" onClick={addContract}>حفظ العقد</button>
+          <button className="secondary-btn small" onClick={() => setContractForm(emptyContractForm)}>إلغاء</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderTenants = () => (
+    <div className="page-block">
+      <div className="section-header">
+        <h2>المستأجرون</h2>
+        <button className="primary-btn small" onClick={() => setActivePage('contracts')}>+ إضافة مستأجر</button>
+      </div>
+
+      <div className="tenant-grid">
+        {data.tenants.map((tenant) => (
+          <div className="tenant-card panel" key={tenant.id}>
+            <div className="tenant-card-head">
+              <div>
+                <strong>{tenant.name}</strong>
+                <small>{tenant.company}</small>
+              </div>
+              <span className={`mini-tag ${tenant.status === 'نشط' ? 'success' : 'danger'}`}>{tenant.status}</span>
+            </div>
+            <ul className="tenant-meta">
+              <li><span>رقم الهوية</span><strong>{tenant.id}</strong></li>
+              <li><span>الجنسية</span><strong>{tenant.nationality}</strong></li>
+              <li><span>الجوال</span><strong>{tenant.phone}</strong></li>
+            </ul>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderPayments = () => (
+    <div className="page-block">
+      <div className="section-header">
+        <h2>جدول الدفعات</h2>
+        <button className="primary-btn small" onClick={() => setActivePage('contracts')}>+ إضافة دفعة</button>
+      </div>
+
+      <div className="panel full-width-panel">
+        <table>
+          <thead>
+            <tr>
+              <th>الفاتورة</th>
+              <th>المستأجر</th>
+              <th>تاريخ الاستحقاق</th>
+              <th>المبلغ</th>
+              <th>المدفوع</th>
+              <th>الحالة</th>
+              <th>الإجراءات</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.payments.map((pay) => (
+              <tr key={pay.invoice}>
+                <td>{pay.invoice}</td>
+                <td>{pay.tenant}</td>
+                <td>{pay.due}</td>
+                <td>{formatMoney(pay.amount)}</td>
+                <td>{formatMoney(pay.paid)}</td>
+                <td><span className={`status-badge ${getStatusClass(pay.status)}`}>{pay.status}</span></td>
+                <td>
+                  <div className="mini-actions">
+                    <button
+                      className="table-btn"
+                      onClick={() => {
+                        setSelectedPaymentInvoice(pay.invoice);
+                        setPaidAmountInput(String(pay.paid || 0));
+                        setActivePage('payment-detail');
+                      }}
+                    >
+                      عرض
+                    </button>
+                    <button className="table-btn success-btn" onClick={() => approvePayment(pay.invoice)}>اعتماد</button>
+                    <button className="table-btn warning-btn" onClick={() => postponePayment(pay.invoice, 7)}>تاجيل</button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+  const renderAlerts = () => (
+    <div className="page-block">
+      <div className="section-header">
+        <h2>التنبيهات</h2>
+        <button className="primary-btn small">إرسال تنبيه</button>
+      </div>
+
+      <div className="alert-layout">
+        <div className="panel">
+          <div className="panel-head">
+            <h3>التنبيهات الحالية</h3>
+          </div>
+          <div className="alerts-list">
+            {alertList.map((alert, index) => (
+              <div key={`${alert.text}-${index}`} className={`alert-item ${alert.type}`}>
+                <div className="dot" />
+                <div>
+                  <p>{alert.text}</p>
+                  <small>{alert.time}</small>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="panel-head">
+            <h3>إعداد التنبيهات</h3>
+          </div>
+          <div className="form-grid">
+            <label><span>تنبيه قبل انتهاء العقد</span><input type="text" value="14 يوم" readOnly /></label>
+            <label><span>تنبيه قبل الاستحقاق</span><input type="text" value="3 أيام" readOnly /></label>
+            <label><span>تذكير عبر</span><input type="text" value="SMS + بريد + داخل النظام" readOnly /></label>
+            <label><span>حد التأخير</span><input type="text" value="2 يوم" readOnly /></label>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderReports = () => (
+    <div className="page-block">
+      <div className="section-header">
+        <h2>التقارير</h2>
+        <button className="primary-btn small">تصدير PDF</button>
+      </div>
+
+      <div className="report-grid large">
+        <div className="report-card green">
+          <span>إيراد شهري</span>
+          <strong>{formatMoney(528000)}</strong>
+        </div>
+        <div className="report-card orange">
+          <span>متأخرات</span>
+          <strong>{formatMoney(74000)}</strong>
+        </div>
+        <div className="report-card blue">
+          <span>عقود قريبة</span>
+          <strong>{data.contracts.filter((item) => item.status === 'قريب').length}</strong>
+        </div>
+        <div className="report-card red">
+          <span>إجمالي المدفوع</span>
+          <strong>{formatMoney(totalPaid)}</strong>
+        </div>
+      </div>
+
+      <div className="panel mt-20">
+        <table>
+          <thead>
+            <tr>
+              <th>اسم التقرير</th>
+              <th>الفترة</th>
+              <th>الإجمالي</th>
+              <th>الحالة</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>تقرير العقود النشطة</td>
+              <td>شهر سبتمبر</td>
+              <td>{formatMoney(totalRevenue)}</td>
+              <td><span className="status-badge success">جاهز</span></td>
+            </tr>
+            <tr>
+              <td>تقرير المتأخرات</td>
+              <td>شهر سبتمبر</td>
+              <td>{formatMoney(74000)}</td>
+              <td><span className="status-badge warning">قيد المراجعة</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+  const renderDocuments = () => (
+    <div className="page-block">
+      <div className="section-header">
+        <h2>المرفقات والمستندات</h2>
+        <button className="primary-btn small">رفع ملف</button>
+      </div>
+
+      <div className="panel full-width-panel">
+        <table>
+          <thead>
+            <tr>
+              <th>اسم الملف</th>
+              <th>النوع</th>
+              <th>تاريخ الرفع</th>
+              <th>المسؤول</th>
+              <th>الإجراء</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.documents.map((doc) => (
+              <tr key={doc.name}>
+                <td>{doc.name}</td>
+                <td>{doc.type}</td>
+                <td>{doc.date}</td>
+                <td>{doc.owner}</td>
+                <td><button className="table-btn">تحميل</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+  const renderSettings = () => (
+    <div className="page-block">
+      <div className="section-header">
+        <h2>الإعدادات</h2>
+      </div>
+
+      <div className="settings-grid">
+        <div className="panel">
+          <h3>بيانات الشركة</h3>
+          <div className="form-grid">
+            <label><span>اسم الشركة</span><input type="text" value={data.settings.companyName} readOnly /></label>
+            <label><span>البريد الإلكتروني</span><input type="email" value={data.settings.email} readOnly /></label>
+            <label><span>رقم الهاتف</span><input type="text" value={data.settings.phone} readOnly /></label>
+            <label><span>العملة</span><input type="text" value={data.settings.currency} readOnly /></label>
+          </div>
+        </div>
+
+        <div className="panel">
+          <h3>إعدادات التنبيهات</h3>
+          <div className="form-grid">
+            <label><span>إشعار قبل الانتهاء</span><input type="text" value={`${data.settings.alertBeforeEnd} يوم`} readOnly /></label>
+            <label><span>إشعار قبل الدفع</span><input type="text" value={`${data.settings.alertBeforeDue} أيام`} readOnly /></label>
+            <label><span>لغة النظام</span><input type="text" value={data.settings.language} readOnly /></label>
+            <label><span>مستوى الوصول</span><input type="text" value="مدير" readOnly /></label>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderContent = () => {
+    switch (activePage) {
+      case 'contracts': return renderContracts();
+      case 'contract-detail': return renderContractDetail();
+      case 'payment-detail': return renderPaymentDetail();
+      case 'tenants': return renderTenants();
+      case 'payments': return renderPayments();
+      case 'alerts': return renderAlerts();
+      case 'reports': return renderReports();
+      case 'documents': return renderDocuments();
+      case 'settings': return renderSettings();
+      default: return renderDashboard();
+    }
+  };
+
+  if (!isLoggedIn) {
+    return (
+      <div className="login-shell">
+        <div className="login-card">
+          <div className="login-brand">
+            <div className="brand-icon">E</div>
+            <div>
+              <h2>إيجارات</h2>
+              <p>نظام إدارة العقود</p>
+            </div>
+          </div>
+
+          <form onSubmit={handleLogin} className="login-form">
+            <h3>تسجيل الدخول</h3>
+            <label>
+              <span>اسم المستخدم</span>
+              <input
+                type="text"
+                value={loginForm.username}
+                onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
+              />
+            </label>
+            <label>
+              <span>كلمة المرور</span>
+              <input
+                type="password"
+                value={loginForm.password}
+                onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+              />
+            </label>
+
+            {loginMessage && <div className="login-error">{loginMessage}</div>}
+
+            <button type="submit" className="primary-btn full">دخول النظام</button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -51,16 +1143,18 @@ function App() {
         </div>
 
         <nav className="nav-menu">
-          <button className="nav-item active">لوحة التحكم</button>
-          <button className="nav-item">العقود</button>
-          <button className="nav-item">المستأجرون</button>
-          <button className="nav-item">الدفعات</button>
-          <button className="nav-item">المتابعة</button>
-          <button className="nav-item">التقارير</button>
-          <button className="nav-item">التنبيهات</button>
-          <button className="nav-item">المرفقات</button>
-          <button className="nav-item">الإعدادات</button>
+          {navItems.map((item) => (
+            <button
+              key={item.key}
+              className={`nav-item ${activePage === item.key ? 'active' : ''}`}
+              onClick={() => setActivePage(item.key)}
+            >
+              {item.label}
+            </button>
+          ))}
         </nav>
+
+        <button className="logout-btn" onClick={() => setIsLoggedIn(false)}>تسجيل الخروج</button>
       </aside>
 
       <main className="main-content">
@@ -83,160 +1177,7 @@ function App() {
           </div>
         </header>
 
-        <section className="hero-panel">
-          <div>
-            <p className="eyebrow">نظام متابعة العقود</p>
-            <h1>لوحة التحكم الإدارية</h1>
-          </div>
-          <button className="primary-btn">+ إضافة عقد جديد</button>
-        </section>
-
-        <section className="stats-grid">
-          {stats.map((stat) => (
-            <article className="stat-card" key={stat.label}>
-              <span>{stat.label}</span>
-              <strong>{stat.value}</strong>
-              <small>{stat.trend}</small>
-            </article>
-          ))}
-        </section>
-
-        <section className="content-grid">
-          <div className="panel large-panel">
-            <div className="panel-head">
-              <h3>العقود الأخيرة</h3>
-              <button className="link-btn">عرض الكل</button>
-            </div>
-
-            <table>
-              <thead>
-                <tr>
-                  <th>رقم العقد</th>
-                  <th>المستأجر</th>
-                  <th>العقار</th>
-                  <th>المنطقة</th>
-                  <th>تاريخ الانتهاء</th>
-                  <th>الحالة</th>
-                  <th>الدفع</th>
-                </tr>
-              </thead>
-              <tbody>
-                {contracts.map((contract) => (
-                  <tr key={contract.id}>
-                    <td>{contract.id}</td>
-                    <td>{contract.tenant}</td>
-                    <td>{contract.property}</td>
-                    <td>{contract.area}</td>
-                    <td>{contract.endDate}</td>
-                    <td>
-                      <span className={`status-badge ${contract.status === 'نشط' ? 'success' : contract.status === 'قريب' ? 'warning' : 'danger'}`}>
-                        {contract.status}
-                      </span>
-                    </td>
-                    <td>
-                      <span className={`status-badge ${contract.payment === 'مكتمل' ? 'success' : contract.payment === 'جزئي' ? 'warning' : 'danger'}`}>
-                        {contract.payment}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="panel">
-            <div className="panel-head">
-              <h3>التنبيهات</h3>
-              <button className="link-btn">جميع</button>
-            </div>
-
-            <div className="alerts-list">
-              {alerts.map((alert, index) => (
-                <div key={index} className={`alert-item ${alert.type}`}>
-                  <div className="dot" />
-                  <div>
-                    <p>{alert.text}</p>
-                    <small>{alert.time}</small>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="lower-grid">
-          <div className="panel">
-            <div className="panel-head">
-              <h3>جدول الدفعات</h3>
-              <button className="link-btn">تفاصيل</button>
-            </div>
-
-            <table className="mini-table">
-              <thead>
-                <tr>
-                  <th>الفاتورة</th>
-                  <th>المستأجر</th>
-                  <th>تاريخ الاستحقاق</th>
-                  <th>المبلغ</th>
-                  <th>الحالة</th>
-                </tr>
-              </thead>
-              <tbody>
-                {payments.map((pay) => (
-                  <tr key={pay.invoice}>
-                    <td>{pay.invoice}</td>
-                    <td>{pay.tenant}</td>
-                    <td>{pay.due}</td>
-                    <td>{pay.amount}</td>
-                    <td>
-                      <span className={`status-badge ${pay.status === 'مدفوع' ? 'success' : pay.status === 'جزئي' ? 'warning' : 'danger'}`}>
-                        {pay.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="panel">
-            <div className="panel-head">
-              <h3>المستأجرون</h3>
-              <button className="link-btn">عرض</button>
-            </div>
-
-            <div className="tenant-list">
-              {tenants.map((tenant) => (
-                <div className="tenant-item" key={tenant.id}>
-                  <div className="tenant-info">
-                    <strong>{tenant.name}</strong>
-                    <small>{tenant.company}</small>
-                  </div>
-                  <span className={`mini-tag ${tenant.status === 'نشط' ? 'success' : 'danger'}`}>
-                    {tenant.status}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="report-section">
-          <div className="panel full-width-panel">
-            <div className="panel-head">
-              <h3>ملخص الأداء</h3>
-            </div>
-
-            <div className="report-grid">
-              {reportRows.map((row) => (
-                <div key={row.name} className={`report-card ${row.color}`}>
-                  <span>{row.name}</span>
-                  <strong>{row.value}</strong>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
+        {renderContent()}
       </main>
     </div>
   );
