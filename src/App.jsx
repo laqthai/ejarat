@@ -32,6 +32,7 @@ const navItems = [
 
 const emptyContractForm = {
   tenant: '',
+  phone: '',
   company: '',
   propertyType: 'محل تجاري',
   property: '',
@@ -233,7 +234,7 @@ function App() {
           id: `ID-${Math.floor(Math.random() * 9000 + 1000)}`,
           name: contractForm.tenant,
           nationality: 'غير محدد',
-          phone: '0000000000',
+          phone: contractForm.phone,
           company: contractForm.company || 'مستأجر جديد',
           status: 'نشط'
         },
@@ -741,6 +742,10 @@ function App() {
           <label>
             <span>اسم المستأجر</span>
             <input type="text" value={contractForm.tenant} onChange={(e) => setContractForm({ ...contractForm, tenant: e.target.value })} />
+          </label>
+          <label>
+            <span>رقم جوال المستأجر</span>
+            <input type="tel" inputMode="tel" value={contractForm.phone} onChange={(e) => setContractForm({ ...contractForm, phone: e.target.value })} />
           </label>
           <label>
             <span>اسم الشركة أو المؤسسة</span>
