@@ -1,33 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 
-const STORAGE_KEY = 'lease-dashboard-v1';
+const STORAGE_KEY = 'lease-dashboard-v2';
 const LOGIN_KEY = 'lease-dashboard-auth';
 
 const defaultData = {
-  contracts: [
-    { id: 'LG-204', tenant: 'شركة النور', company: 'شركة النور للتجارة', propertyType: 'محل تجاري', property: 'محل رقم 5', address: 'الرياض - حي النرجس', startDate: '2025-01-01', endDate: '2026-10-15', rent: 14000, taxRate: 15, total: 16100, paymentFrequency: 'شهري', paymentCount: 12, status: 'نشط', paymentStatus: 'مكتمل' },
-    { id: 'LG-188', tenant: 'مؤسسة الخليج', company: 'مؤسسة الخليج', propertyType: 'مكتب', property: 'مكتب 2', address: 'جدة - حي الروضة', startDate: '2025-03-10', endDate: '2026-09-28', rent: 11500, taxRate: 15, total: 13225, paymentFrequency: 'كل 6 أشهر', paymentCount: 2, status: 'قريب', paymentStatus: 'جزئي' },
-    { id: 'LG-177', tenant: 'شركة المعالي', company: 'شركة المعالي', propertyType: 'مخزن', property: 'مخزن 8', address: 'الدمام - حي السيف', startDate: '2024-11-12', endDate: '2026-09-10', rent: 9300, taxRate: 15, total: 10695, paymentFrequency: 'سنوي', paymentCount: 1, status: 'متأخر', paymentStatus: 'متأخر' },
-    { id: 'LG-160', tenant: 'أحمد السلمي', company: 'مستأجر فردي', propertyType: 'محل', property: 'محل 12', address: 'المدينة المنورة - حي الصالحية', startDate: '2025-02-01', endDate: '2026-11-02', rent: 6200, taxRate: 15, total: 7130, paymentFrequency: 'شهري', paymentCount: 12, status: 'نشط', paymentStatus: 'مكتمل' }
-  ],
-  payments: [
-    { invoice: 'INV-1045', tenant: 'شركة النور', due: '2026-09-10', amount: 14000, paid: 14000, status: 'مدفوع' },
-    { invoice: 'INV-1046', tenant: 'مؤسسة الخليج', due: '2026-09-15', amount: 11500, paid: 8500, status: 'جزئي' },
-    { invoice: 'INV-1047', tenant: 'شركة المعالي', due: '2026-09-18', amount: 9300, paid: 0, status: 'متأخر' },
-    { invoice: 'INV-1048', tenant: 'أحمد السلمي', due: '2026-09-21', amount: 6200, paid: 6200, status: 'مدفوع' }
-  ],
-  tenants: [
-    { id: '1234567890', name: 'شركة النور', nationality: 'سعودي', phone: '0501234567', company: 'شركة النور للتجارة', status: 'نشط' },
-    { id: '9876543210', name: 'مؤسسة الخليج', nationality: 'سعودي', phone: '0559876543', company: 'مؤسسة الخليج', status: 'نشط' },
-    { id: '4561237890', name: 'شركة المعالي', nationality: 'مصري', phone: '0543219876', company: 'شركة المعالي', status: 'متأخر' },
-    { id: '1234561234', name: 'أحمد السلمي', nationality: 'سعودي', phone: '0561112233', company: 'مستأجر فردي', status: 'نشط' }
-  ],
-  documents: [
-    { name: 'عقد_مؤسسة_الخليج.pdf', type: 'عقد', date: '2026-08-21', owner: 'سارة عبدالله' },
-    { name: 'صورة_محل_5.jpg', type: 'صورة عقار', date: '2026-08-18', owner: 'فريق الإدارة' },
-    { name: 'حوالة_شركة_النور.pdf', type: 'سند تحويل', date: '2026-09-01', owner: 'محمد علي' },
-    { name: 'ملحق_تجديد_الدمام.pdf', type: 'مستند', date: '2026-09-02', owner: 'خالد الشمري' }
-  ],
+  contracts: [],
+  payments: [],
+  tenants: [],
+  documents: [],
   settings: {
     companyName: 'إيجارات السعودية',
     email: 'info@ejarat.sa',
@@ -94,7 +74,7 @@ function App() {
   const [receiptPreview, setReceiptPreview] = useState(null);
   const [contractForm, setContractForm] = useState(emptyContractForm);
   const [paidAmountInput, setPaidAmountInput] = useState('');
-  const [loginForm, setLoginForm] = useState({ username: 'admin', password: '1234' });
+  const [loginForm, setLoginForm] = useState({ username: 'admin', password: '' });
   const [loginMessage, setLoginMessage] = useState('');
 
   useEffect(() => {
@@ -154,7 +134,7 @@ function App() {
   const handleLogin = (event) => {
     event.preventDefault();
 
-    if (loginForm.username === 'admin' && loginForm.password === '1234') {
+    if (loginForm.username === 'admin' && loginForm.password === '99776644') {
       setIsLoggedIn(true);
       setLoginMessage('');
       return;
