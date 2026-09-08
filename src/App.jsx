@@ -75,6 +75,7 @@ function App() {
   const [selectedPaymentInvoice, setSelectedPaymentInvoice] = useState(data.payments[0]?.invoice ?? null);
   const [receiptPreview, setReceiptPreview] = useState(null);
   const [contractForm, setContractForm] = useState(emptyContractForm);
+  const [editingContractId, setEditingContractId] = useState(null);
   const [paidAmountInput, setPaidAmountInput] = useState('');
   const [loginForm, setLoginForm] = useState({ username: 'admin', password: '' });
   const [loginMessage, setLoginMessage] = useState('');
@@ -186,6 +187,31 @@ function App() {
     return months || (frequency === 'سنوي' ? 12 : 1);
   };
 
+  const startEditContract = (contract) => {
+    const propertyOptions = ['محل تجاري', 'مكتب', 'مخزن', 'مستودع'];
+    const isCustomProperty = !propertyOptions.includes(contract.propertyType);
+
+    setEditingContractId(contract.id);
+    setContractForm({
+      ...emptyContractForm,
+      tenant: contract.tenant || '',
+      company: contract.company || '',
+      propertyType: isCustomProperty ? 'أخرى' : contract.propertyType,
+      customPropertyType: isCustomProperty ? contract.propertyType : '',
+      property: contract.property || '',
+      address: contract.address || '',
+      startDate: contract.startDate || '',
+      endDate: contract.endDate || '',
+      rent: contract.rent || contract.total || '',
+      paymentFrequency: contract.paymentFrequency || 'كل شهر',
+      paymentCount: contract.paymentCount || 1,
+      propertyImage: null,
+      contractFile: null
+    });
+    setContractMessage('عدّل البيانات ثم اضغط حفظ التعديلات');
+    setActivePage('contracts');
+  };
+
   const savePaymentAmount = (invoice) => {
     const paid = Math.max(0, Number(paidAmountInput || 0));
 
@@ -244,8 +270,12 @@ function App() {
       }
     }
 
+    const existingContract = editingContractId
+      ? data.contracts.find((contract) => contract.id === editingContractId)
+      : null;
+    const contractId = editingContractId || `LG-${Math.floor(Math.random() * 900 + 100)}`;
     const newContract = {
-      id: `LG-${Math.floor(Math.random() * 900 + 100)}`,
+      id: contractId,
       tenant: contractForm.tenant,
       company: contractForm.company || 'مستأجر جديد',
       propertyType,
@@ -257,10 +287,10 @@ function App() {
       total: rent,
       paymentFrequency: contractForm.paymentFrequency,
       paymentCount,
-      propertyImage: uploadedImage,
-      contractFile: uploadedContract,
-      status: 'نشط',
-      paymentStatus: 'مكتمل'
+      propertyImage: uploadedImage || existingContract?.propertyImage || null,
+      contractFile: uploadedContract || existingContract?.contractFile || null,
+      status: existingContract?.status || 'نشط',
+      paymentStatus: existingContract?.paymentStatus || 'مكتمل'
     };
 
     const newPayments = Array.from({ length: paymentCount }, (_, index) => ({
@@ -275,8 +305,16 @@ function App() {
 
     setData((prev) => ({
       ...prev,
-      contracts: [newContract, ...prev.contracts],
-      payments: [...newPayments, ...prev.payments],
+      contracts: editingContractId
+        ? prev.contracts.map((contract) => contract.id === editingContractId ? newContract : contract)
+        : [newContract, ...prev.contracts],
+      payments: editingContractId
+        ? prev.payments.map((payment) => payment.contractId === editingContractId ? {
+          ...payment,
+          tenant: newContract.tenant,
+          amount: Math.round((rent / paymentCount) * 100) / 100
+        } : payment)
+        : [...newPayments, ...prev.payments],
       tenants: [
         {
           id: `ID-${Math.floor(Math.random() * 9000 + 1000)}`,
@@ -291,6 +329,7 @@ function App() {
     }));
 
     setContractForm(emptyContractForm);
+    setEditingContractId(null);
     setContractMessage(uploadMessages.length
       ? `تم حفظ العقد، لكن تعذر رفع ${uploadMessages.join(' و')}. تحقق من إعدادات Supabase ثم أعد إرفاقه.`
       : 'تم حفظ العقد وإنشاء جدول الدفعات');
@@ -526,7 +565,7 @@ function App() {
           <h2>تفاصيل العقد</h2>
           <div className="inline-actions">
             <button className="secondary-btn small" onClick={() => setActivePage('contracts')}>العودة</button>
-            <button className="primary-btn small">تحديث البيانات</button>
+            <button className="primary-btn small" onClick={() => startEditContract(selectedContract)}>تحديث البيانات</button>
           </div>
         </div>
 
@@ -795,7 +834,7 @@ function App() {
       </div>
 
       <div className="panel mt-20">
-        <h3>إضافة عقد جديد</h3>
+        <h3>{editingContractId ? 'تعديل العقد' : 'إضافة عقد جديد'}</h3>
         <div className="grid-two">
           <label>
             <span>اسم المستأجر</span>
@@ -879,8 +918,8 @@ function App() {
         )}
 
         <div className="form-actions mt-20">
-          <button className="primary-btn small" onClick={addContract}>حفظ العقد</button>
-          <button className="secondary-btn small" onClick={() => setContractForm(emptyContractForm)}>إلغاء</button>
+          <button className="primary-btn small" onClick={addContract}>{editingContractId ? 'حفظ التعديلات' : 'حفظ العقد'}</button>
+          <button className="secondary-btn small" onClick={() => { setContractForm(emptyContractForm); setEditingContractId(null); setContractMessage(''); }}>إلغاء</button>
         </div>
       </div>
     </div>
