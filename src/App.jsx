@@ -222,16 +222,26 @@ function App() {
     const paymentCount = Math.max(1, Number(contractForm.paymentCount || 1));
     const frequencyMonths = getFrequencyMonths(contractForm.paymentFrequency);
 
-    setContractMessage('جاري رفع المرفقات وحفظ العقد...');
+    setContractMessage('جاري حفظ العقد ورفع المرفقات...');
 
     let uploadedImage;
     let uploadedContract;
-    try {
-      uploadedImage = await uploadFile(contractForm.propertyImage, 'property-images');
-      uploadedContract = await uploadFile(contractForm.contractFile, 'contracts');
-    } catch (error) {
-      setContractMessage(`تعذر رفع المرفق: ${error.message || 'تحقق من إعداد Bucket في Supabase'}`);
-      return;
+    const uploadMessages = [];
+
+    if (contractForm.propertyImage) {
+      try {
+        uploadedImage = await uploadFile(contractForm.propertyImage, 'property-images');
+      } catch (error) {
+        uploadMessages.push(`صورة العقار: ${error.message || 'تعذر الرفع'}`);
+      }
+    }
+
+    if (contractForm.contractFile) {
+      try {
+        uploadedContract = await uploadFile(contractForm.contractFile, 'contracts');
+      } catch (error) {
+        uploadMessages.push(`ملف العقد: ${error.message || 'تعذر الرفع'}`);
+      }
     }
 
     const newContract = {
@@ -281,7 +291,9 @@ function App() {
     }));
 
     setContractForm(emptyContractForm);
-    setContractMessage('تم حفظ العقد وإنشاء جدول الدفعات');
+    setContractMessage(uploadMessages.length
+      ? `تم حفظ العقد، لكن تعذر رفع ${uploadMessages.join(' و')}. تحقق من إعدادات Supabase ثم أعد إرفاقه.`
+      : 'تم حفظ العقد وإنشاء جدول الدفعات');
     setActivePage('contracts');
   };
 
