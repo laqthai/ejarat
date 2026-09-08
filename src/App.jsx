@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { supabase } from './lib/supabase';
 
 const STORAGE_KEY = 'lease-dashboard-v2';
 const LOGIN_KEY = 'lease-dashboard-auth';
@@ -43,8 +44,8 @@ const emptyContractForm = {
   rent: '',
   paymentFrequency: 'شهري',
   paymentCount: 12,
-  propertyImage: '',
-  contractFile: '',
+  propertyImage: null,
+  contractFile: null,
   status: 'نشط'
 };
 
@@ -155,12 +156,23 @@ function App() {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => setContractForm((prev) => ({
-      ...prev,
-      [field]: { name: file.name, type: file.type, data: reader.result }
-    }));
-    reader.readAsDataURL(file);
+    setContractForm((prev) => ({ ...prev, [field]: file }));
+  };
+
+  const uploadFile = async (file, folder) => {
+    if (!file) return null;
+    if (!supabase) throw new Error('إعدادات Supabase غير موجودة');
+
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-');
+    const path = `${folder}/${Date.now()}-${safeName}`;
+    const { error } = await supabase.storage.from('lease-files').upload(path, file, {
+      cacheControl: '3600',
+      upsert: false
+    });
+    if (error) throw error;
+
+    const { data: publicFile } = supabase.storage.from('lease-files').getPublicUrl(path);
+    return { name: file.name, type: file.type, path, url: publicFile.publicUrl };
   };
 
   const addMonths = (date, months) => {
@@ -194,7 +206,7 @@ function App() {
     }));
   };
 
-  const addContract = () => {
+  const addContract = async () => {
     setContractMessage('');
     if (!contractForm.tenant || !contractForm.property || !contractForm.address || !contractForm.startDate || !contractForm.endDate || !contractForm.rent) {
       setContractMessage('يرجى تعبئة الحقول الأساسية قبل حفظ العقد');
@@ -210,6 +222,18 @@ function App() {
     const paymentCount = Math.max(1, Number(contractForm.paymentCount || 1));
     const frequencyMonths = getFrequencyMonths(contractForm.paymentFrequency);
 
+    setContractMessage('جاري رفع المرفقات وحفظ العقد...');
+
+    let uploadedImage;
+    let uploadedContract;
+    try {
+      uploadedImage = await uploadFile(contractForm.propertyImage, 'property-images');
+      uploadedContract = await uploadFile(contractForm.contractFile, 'contracts');
+    } catch (error) {
+      setContractMessage(`تعذر رفع المرفق: ${error.message || 'تحقق من إعداد Bucket في Supabase'}`);
+      return;
+    }
+
     const newContract = {
       id: `LG-${Math.floor(Math.random() * 900 + 100)}`,
       tenant: contractForm.tenant,
@@ -223,8 +247,8 @@ function App() {
       total: rent,
       paymentFrequency: contractForm.paymentFrequency,
       paymentCount,
-      propertyImage: contractForm.propertyImage,
-      contractFile: contractForm.contractFile,
+      propertyImage: uploadedImage,
+      contractFile: uploadedContract,
       status: 'نشط',
       paymentStatus: 'مكتمل'
     };
@@ -520,7 +544,7 @@ function App() {
 
           <div className="panel">
             <h3>خريطة العقار</h3>
-            {selectedContract.propertyImage && <img src={selectedContract.propertyImage.data || selectedContract.propertyImage} alt="صورة العقار" className="property-image" />}
+            {selectedContract.propertyImage && <img src={selectedContract.propertyImage.url || selectedContract.propertyImage} alt="صورة العقار" className="property-image" />}
             <div className="map-box">
               <span>📍</span>
               <p>{selectedContract.address}</p>
@@ -529,7 +553,11 @@ function App() {
               <label><span>موقع العقار</span><input type="text" value="الرياض - حي النرجس" readOnly /></label>
               <label><span>الإحداثيات</span><input type="text" value="24.7136, 46.6753" readOnly /></label>
             </div>
-            {selectedContract.contractFile && <div className="uploaded-file detail-file">ملف العقد مرفق</div>}
+            {selectedContract.contractFile && (
+              <a className="uploaded-file detail-file" href={selectedContract.contractFile.url || selectedContract.contractFile} target="_blank" rel="noreferrer">
+                فتح ملف العقد: {selectedContract.contractFile.name || 'المرفق'}
+              </a>
+            )}
           </div>
         </div>
 
@@ -833,7 +861,7 @@ function App() {
 
         {(contractForm.propertyImage || contractForm.contractFile) && (
           <div className="upload-preview-row">
-            {contractForm.propertyImage && <img src={contractForm.propertyImage.data} alt="معاينة صورة العقار" className="property-thumb" />}
+            {contractForm.propertyImage && <img src={URL.createObjectURL(contractForm.propertyImage)} alt="معاينة صورة العقار" className="property-thumb" />}
             {contractForm.contractFile && <span className="uploaded-file">تم اختيار: {contractForm.contractFile.name}</span>}
           </div>
         )}
