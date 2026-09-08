@@ -35,12 +35,12 @@ const emptyContractForm = {
   phone: '',
   company: '',
   propertyType: 'محل تجاري',
+  customPropertyType: '',
   property: '',
   address: '',
   startDate: '',
   endDate: '',
   rent: '',
-  taxRate: 15,
   paymentFrequency: 'شهري',
   paymentCount: 12,
   propertyImage: '',
@@ -77,6 +77,9 @@ function App() {
   const [paidAmountInput, setPaidAmountInput] = useState('');
   const [loginForm, setLoginForm] = useState({ username: 'admin', password: '' });
   const [loginMessage, setLoginMessage] = useState('');
+  const [contractMessage, setContractMessage] = useState('');
+  const [settingsForm, setSettingsForm] = useState(data.settings);
+  const [settingsMessage, setSettingsMessage] = useState('');
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -147,8 +150,16 @@ function App() {
   const readFileAsDataUrl = (file, field) => {
     if (!file) return;
 
+    if (file.size > 1.5 * 1024 * 1024) {
+      setContractMessage('حجم الملف كبير. الحد الأقصى للمرفق 1.5 ميجابايت حالياً');
+      return;
+    }
+
     const reader = new FileReader();
-    reader.onload = () => setContractForm((prev) => ({ ...prev, [field]: reader.result }));
+    reader.onload = () => setContractForm((prev) => ({
+      ...prev,
+      [field]: { name: file.name, type: file.type, data: reader.result }
+    }));
     reader.readAsDataURL(file);
   };
 
@@ -159,9 +170,8 @@ function App() {
   };
 
   const getFrequencyMonths = (frequency) => {
-    if (frequency === 'سنوي') return 12;
-    if (frequency === 'كل 6 أشهر') return 6;
-    return 1;
+    const months = Number(String(frequency).match(/\d+/)?.[0]);
+    return months || (frequency === 'سنوي' ? 12 : 1);
   };
 
   const savePaymentAmount = (invoice) => {
@@ -185,13 +195,18 @@ function App() {
   };
 
   const addContract = () => {
+    setContractMessage('');
     if (!contractForm.tenant || !contractForm.property || !contractForm.address || !contractForm.startDate || !contractForm.endDate || !contractForm.rent) {
+      setContractMessage('يرجى تعبئة الحقول الأساسية قبل حفظ العقد');
       return;
     }
 
     const rent = Number(contractForm.rent || 0);
-    const taxRate = Number(contractForm.taxRate || 0);
-    const total = rent + (rent * taxRate) / 100;
+    const propertyType = contractForm.propertyType === 'أخرى' ? contractForm.customPropertyType.trim() : contractForm.propertyType;
+    if (!propertyType) {
+      setContractMessage('اكتب نوع العقار عند اختيار أخرى');
+      return;
+    }
     const paymentCount = Math.max(1, Number(contractForm.paymentCount || 1));
     const frequencyMonths = getFrequencyMonths(contractForm.paymentFrequency);
 
@@ -199,14 +214,13 @@ function App() {
       id: `LG-${Math.floor(Math.random() * 900 + 100)}`,
       tenant: contractForm.tenant,
       company: contractForm.company || 'مستأجر جديد',
-      propertyType: contractForm.propertyType,
+      propertyType,
       property: contractForm.property,
       address: contractForm.address,
       startDate: contractForm.startDate,
       endDate: contractForm.endDate,
       rent,
-      taxRate,
-      total,
+      total: rent,
       paymentFrequency: contractForm.paymentFrequency,
       paymentCount,
       propertyImage: contractForm.propertyImage,
@@ -220,7 +234,7 @@ function App() {
       contractId: newContract.id,
       tenant: newContract.tenant,
       due: addMonths(contractForm.startDate, index * frequencyMonths),
-      amount: Math.round((total / paymentCount) * 100) / 100,
+      amount: Math.round((rent / paymentCount) * 100) / 100,
       paid: 0,
       status: 'متأخر'
     }));
@@ -243,7 +257,13 @@ function App() {
     }));
 
     setContractForm(emptyContractForm);
+    setContractMessage('تم حفظ العقد وإنشاء جدول الدفعات');
     setActivePage('contracts');
+  };
+
+  const saveSettings = () => {
+    setData((prev) => ({ ...prev, settings: { ...prev.settings, ...settingsForm } }));
+    setSettingsMessage('تم حفظ إعدادات الشركة بنجاح');
   };
 
   const approvePayment = (invoice) => {
@@ -492,9 +512,7 @@ function App() {
               <div><span>العنوان</span><strong>{selectedContract.address}</strong></div>
               <div><span>تاريخ البداية</span><strong>{selectedContract.startDate}</strong></div>
               <div><span>تاريخ النهاية</span><strong>{selectedContract.endDate}</strong></div>
-              <div><span>قيمة الإيجار</span><strong>{formatMoney(selectedContract.rent)}</strong></div>
-              <div><span>ضريبة القيمة المضافة</span><strong>{selectedContract.taxRate}%</strong></div>
-              <div><span>الإجمالي</span><strong>{formatMoney(selectedContract.total)}</strong></div>
+              <div><span>قيمة العقد</span><strong>{formatMoney(selectedContract.total)}</strong></div>
               <div><span>دورية الدفعات</span><strong>{selectedContract.paymentFrequency || 'شهري'}</strong></div>
               <div><span>عدد الدفعات</span><strong>{selectedContract.paymentCount || 'غير محدد'}</strong></div>
             </div>
@@ -502,7 +520,7 @@ function App() {
 
           <div className="panel">
             <h3>خريطة العقار</h3>
-            {selectedContract.propertyImage && <img src={selectedContract.propertyImage} alt="صورة العقار" className="property-image" />}
+            {selectedContract.propertyImage && <img src={selectedContract.propertyImage.data || selectedContract.propertyImage} alt="صورة العقار" className="property-image" />}
             <div className="map-box">
               <span>📍</span>
               <p>{selectedContract.address}</p>
@@ -758,8 +776,15 @@ function App() {
               <option value="مكتب">مكتب</option>
               <option value="مخزن">مخزن</option>
               <option value="مستودع">مستودع</option>
+              <option value="أخرى">أخرى</option>
             </select>
           </label>
+          {contractForm.propertyType === 'أخرى' && (
+            <label>
+              <span>اكتب نوع العقار</span>
+              <input type="text" value={contractForm.customPropertyType} onChange={(e) => setContractForm({ ...contractForm, customPropertyType: e.target.value })} />
+            </label>
+          )}
           <label>
             <span>اسم العقار</span>
             <input type="text" value={contractForm.property} onChange={(e) => setContractForm({ ...contractForm, property: e.target.value })} />
@@ -777,19 +802,17 @@ function App() {
             <input type="date" value={contractForm.endDate} onChange={(e) => setContractForm({ ...contractForm, endDate: e.target.value })} />
           </label>
           <label>
-            <span>قيمة العقد قبل الضريبة</span>
+            <span>قيمة العقد</span>
             <input type="number" value={contractForm.rent} onChange={(e) => setContractForm({ ...contractForm, rent: e.target.value })} />
-          </label>
-          <label>
-            <span>نسبة الضريبة</span>
-            <input type="number" value={contractForm.taxRate} onChange={(e) => setContractForm({ ...contractForm, taxRate: e.target.value })} />
           </label>
           <label>
             <span>دورية الدفعات</span>
             <select value={contractForm.paymentFrequency} onChange={(e) => setContractForm({ ...contractForm, paymentFrequency: e.target.value })}>
-              <option value="شهري">شهري</option>
-              <option value="كل 6 أشهر">كل 6 أشهر</option>
-              <option value="سنوي">سنوي</option>
+              {Array.from({ length: 12 }, (_, index) => {
+                const months = index + 1;
+                const label = months === 1 ? 'كل شهر' : months === 2 ? 'كل شهرين' : months === 12 ? 'سنوي' : `كل ${months} أشهر`;
+                return <option key={months} value={label}>{label}</option>;
+              })}
             </select>
           </label>
           <label>
@@ -806,10 +829,12 @@ function App() {
           </label>
         </div>
 
+        {contractMessage && <div className="form-message">{contractMessage}</div>}
+
         {(contractForm.propertyImage || contractForm.contractFile) && (
           <div className="upload-preview-row">
-            {contractForm.propertyImage && <img src={contractForm.propertyImage} alt="معاينة صورة العقار" className="property-thumb" />}
-            {contractForm.contractFile && <span className="uploaded-file">تم اختيار ملف العقد</span>}
+            {contractForm.propertyImage && <img src={contractForm.propertyImage.data} alt="معاينة صورة العقار" className="property-thumb" />}
+            {contractForm.contractFile && <span className="uploaded-file">تم اختيار: {contractForm.contractFile.name}</span>}
           </div>
         )}
 
@@ -1041,19 +1066,23 @@ function App() {
         <div className="panel">
           <h3>بيانات الشركة</h3>
           <div className="form-grid">
-            <label><span>اسم الشركة</span><input type="text" value={data.settings.companyName} readOnly /></label>
-            <label><span>البريد الإلكتروني</span><input type="email" value={data.settings.email} readOnly /></label>
-            <label><span>رقم الهاتف</span><input type="text" value={data.settings.phone} readOnly /></label>
-            <label><span>العملة</span><input type="text" value={data.settings.currency} readOnly /></label>
+            <label><span>اسم الشركة</span><input type="text" value={settingsForm.companyName} onChange={(e) => setSettingsForm({ ...settingsForm, companyName: e.target.value })} /></label>
+            <label><span>البريد الإلكتروني</span><input type="email" value={settingsForm.email} onChange={(e) => setSettingsForm({ ...settingsForm, email: e.target.value })} /></label>
+            <label><span>رقم الهاتف</span><input type="text" value={settingsForm.phone} onChange={(e) => setSettingsForm({ ...settingsForm, phone: e.target.value })} /></label>
+            <label><span>العملة</span><input type="text" value={settingsForm.currency} onChange={(e) => setSettingsForm({ ...settingsForm, currency: e.target.value })} /></label>
           </div>
+          <div className="form-actions mt-20">
+            <button className="primary-btn small" onClick={saveSettings}>حفظ إعدادات الشركة</button>
+          </div>
+          {settingsMessage && <div className="form-message success-message">{settingsMessage}</div>}
         </div>
 
         <div className="panel">
           <h3>إعدادات التنبيهات</h3>
           <div className="form-grid">
-            <label><span>إشعار قبل الانتهاء</span><input type="text" value={`${data.settings.alertBeforeEnd} يوم`} readOnly /></label>
-            <label><span>إشعار قبل الدفع</span><input type="text" value={`${data.settings.alertBeforeDue} أيام`} readOnly /></label>
-            <label><span>لغة النظام</span><input type="text" value={data.settings.language} readOnly /></label>
+            <label><span>إشعار قبل الانتهاء</span><input type="number" value={settingsForm.alertBeforeEnd} onChange={(e) => setSettingsForm({ ...settingsForm, alertBeforeEnd: e.target.value })} /></label>
+            <label><span>إشعار قبل الدفع</span><input type="number" value={settingsForm.alertBeforeDue} onChange={(e) => setSettingsForm({ ...settingsForm, alertBeforeDue: e.target.value })} /></label>
+            <label><span>لغة النظام</span><input type="text" value={settingsForm.language} onChange={(e) => setSettingsForm({ ...settingsForm, language: e.target.value })} /></label>
             <label><span>مستوى الوصول</span><input type="text" value="مدير" readOnly /></label>
           </div>
         </div>

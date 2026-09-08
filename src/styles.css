@@ -595,6 +595,21 @@ label input[type="file"] {
   gap: 12px;
 }
 
+.form-message {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--warning-soft);
+  color: #9a6700;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.success-message {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
 .inline-actions {
   display: flex;
   gap: 10px;
