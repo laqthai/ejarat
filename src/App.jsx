@@ -83,6 +83,7 @@ function App() {
   const [loginForm, setLoginForm] = useState({ username: 'admin', password: '' });
   const [loginMessage, setLoginMessage] = useState('');
   const [contractMessage, setContractMessage] = useState('');
+  const [tenantMessage, setTenantMessage] = useState('');
   const [settingsForm, setSettingsForm] = useState(data.settings);
   const [settingsMessage, setSettingsMessage] = useState('');
 
@@ -495,6 +496,30 @@ function App() {
       setContractMessage('تم حذف العقد ودفعاته بنجاح');
     } catch (error) {
       setContractMessage(`تعذر حذف العقد: ${error.message || 'تحقق من اتصال Supabase'}`);
+    }
+  };
+
+  const deleteTenant = async (tenant) => {
+    const hasContracts = data.contracts.some((contract) => contract.tenant === tenant.name);
+    if (hasContracts) {
+      setTenantMessage('لا يمكن حذف هذا المستأجر لأنه مرتبط بعقد. احذف العقد أولاً.');
+      return;
+    }
+    if (!window.confirm(`هل أنت متأكد من حذف المستأجر ${tenant.name}؟`)) return;
+
+    setTenantMessage('جاري حذف المستأجر...');
+    try {
+      if (supabase) {
+        const { error } = await supabase.from('lease_tenants').delete().eq('id', tenant.id);
+        if (error) throw error;
+      }
+      setData((prev) => ({
+        ...prev,
+        tenants: prev.tenants.filter((item) => item.id !== tenant.id)
+      }));
+      setTenantMessage('تم حذف المستأجر بنجاح');
+    } catch (error) {
+      setTenantMessage(`تعذر حذف المستأجر: ${error.message || 'تحقق من اتصال Supabase'}`);
     }
   };
 
@@ -1070,6 +1095,8 @@ function App() {
         <button className="primary-btn small" onClick={() => setActivePage('contracts')}>+ إضافة مستأجر</button>
       </div>
 
+      {tenantMessage && <div className="form-message">{tenantMessage}</div>}
+
       <div className="tenant-grid">
         {data.tenants.map((tenant) => (
           <div className="tenant-card panel" key={tenant.id}>
@@ -1085,6 +1112,7 @@ function App() {
               <li><span>الجنسية</span><strong>{tenant.nationality}</strong></li>
               <li><span>الجوال</span><strong>{tenant.phone}</strong></li>
             </ul>
+            <button className="table-btn danger-btn" onClick={() => deleteTenant(tenant)}>حذف المستأجر</button>
           </div>
         ))}
       </div>
