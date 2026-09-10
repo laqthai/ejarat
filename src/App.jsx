@@ -1214,8 +1214,12 @@ function App() {
     </div>
   );
 
-  const renderReports = () => (
-    <div className="page-block">
+  const renderReports = () => {
+    const overduePayments = data.payments.filter((payment) => payment.status === 'متأخر' || payment.status === 'جزئي');
+    const overdueTotal = overduePayments.reduce((sum, payment) => sum + Math.max(Number(payment.amount || 0) - Number(payment.paid || 0), 0), 0);
+
+    return (
+      <div className="page-block">
       <div className="section-header">
         <h2>التقارير</h2>
         <button className="primary-btn small">تصدير PDF</button>
@@ -1228,7 +1232,7 @@ function App() {
         </div>
         <div className="report-card orange">
           <span>متأخرات</span>
-          <strong>{formatMoney(74000)}</strong>
+          <strong>{formatMoney(overdueTotal)}</strong>
         </div>
         <div className="report-card blue">
           <span>عقود قريبة</span>
@@ -1260,14 +1264,52 @@ function App() {
             <tr>
               <td>تقرير المتأخرات</td>
               <td>شهر سبتمبر</td>
-              <td>{formatMoney(74000)}</td>
-              <td><span className="status-badge warning">قيد المراجعة</span></td>
+              <td>{formatMoney(overdueTotal)}</td>
+              <td><button className="table-btn" onClick={() => setActivePage('payments')}>عرض التفاصيل</button></td>
             </tr>
           </tbody>
         </table>
       </div>
+
+      <div className="panel full-width-panel">
+        <div className="panel-head">
+          <h3>تفاصيل المتأخرات والدفعات الجزئية</h3>
+          <span className="status-badge warning">{overduePayments.length} دفعة</span>
+        </div>
+        {overduePayments.length ? (
+          <table>
+            <thead>
+              <tr>
+                <th>الفاتورة</th>
+                <th>المستأجر</th>
+                <th>الاستحقاق</th>
+                <th>المطلوب</th>
+                <th>المدفوع</th>
+                <th>المتبقي</th>
+                <th>الحالة</th>
+                <th>الإجراء</th>
+              </tr>
+            </thead>
+            <tbody>
+              {overduePayments.map((payment) => (
+                <tr key={payment.invoice}>
+                  <td>{payment.invoice}</td>
+                  <td>{payment.tenant}</td>
+                  <td>{payment.due}</td>
+                  <td>{formatMoney(payment.amount)}</td>
+                  <td>{formatMoney(payment.paid)}</td>
+                  <td>{formatMoney(Math.max(Number(payment.amount || 0) - Number(payment.paid || 0), 0))}</td>
+                  <td><span className={`status-badge ${getStatusClass(payment.status)}`}>{payment.status}</span></td>
+                  <td><button className="table-btn" onClick={() => { setSelectedPaymentInvoice(payment.invoice); setPaymentAmountInput(String(payment.amount || 0)); setPaymentDueInput(payment.due || ''); setPaidAmountInput(String(payment.paid || 0)); setActivePage('payment-detail'); }}>فتح الدفعة</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : <div className="empty-state">لا توجد دفعات متأخرة حالياً</div>}
+      </div>
     </div>
-  );
+    );
+  };
 
   const renderDocuments = () => (
     <div className="page-block">
