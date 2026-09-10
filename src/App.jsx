@@ -91,6 +91,28 @@ function App() {
   }, [data]);
 
   useEffect(() => {
+    if (!supabase) return;
+
+    const loadCloudData = async () => {
+      const [{ data: cloudContracts }, { data: cloudPayments }, { data: cloudTenants }] = await Promise.all([
+        supabase.from('lease_contracts').select('id, payload'),
+        supabase.from('lease_payments').select('id, payload'),
+        supabase.from('lease_tenants').select('id, payload')
+      ]);
+
+      if (!cloudContracts && !cloudPayments && !cloudTenants) return;
+      setData((prev) => ({
+        ...prev,
+        contracts: cloudContracts?.map((row) => row.payload) || prev.contracts,
+        payments: cloudPayments?.map((row) => row.payload) || prev.payments,
+        tenants: cloudTenants?.map((row) => row.payload) || prev.tenants
+      }));
+    };
+
+    loadCloudData().catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
     localStorage.setItem(LOGIN_KEY, String(isLoggedIn));
   }, [isLoggedIn]);
 
@@ -177,6 +199,19 @@ function App() {
 
     const { data: publicFile } = supabase.storage.from('lease-files').getPublicUrl(path);
     return { name: file.name, type: file.type, path, url: publicFile.publicUrl };
+  };
+
+  const syncContractToDatabase = async (contract, payments, tenant) => {
+    if (!supabase) throw new Error('إعدادات Supabase غير موجودة');
+
+    const operations = [
+      supabase.from('lease_contracts').upsert({ id: contract.id, payload: contract }),
+      supabase.from('lease_tenants').upsert({ id: tenant.id, payload: tenant }),
+      ...payments.map((payment) => supabase.from('lease_payments').upsert({ id: payment.invoice, payload: payment }))
+    ];
+    const results = await Promise.all(operations);
+    const failed = results.find((result) => result.error);
+    if (failed?.error) throw failed.error;
   };
 
   const addMonths = (date, months) => {
@@ -337,6 +372,22 @@ function App() {
       status: 'متأخر'
     }));
 
+    const newTenant = {
+      id: `ID-${Math.floor(Math.random() * 9000 + 1000)}`,
+      name: contractForm.tenant,
+      nationality: 'غير محدد',
+      phone: contractForm.phone,
+      company: contractForm.company || 'مستأجر جديد',
+      status: 'نشط'
+    };
+
+    let databaseMessage = '';
+    try {
+      await syncContractToDatabase(newContract, newPayments, newTenant);
+    } catch (error) {
+      databaseMessage = `تعذر الحفظ في قاعدة البيانات: ${error.message || 'شغّل ملف إعداد قاعدة البيانات في Supabase'}`;
+    }
+
     setData((prev) => ({
       ...prev,
       contracts: editingContractId
@@ -350,23 +401,16 @@ function App() {
         } : payment)
         : [...newPayments, ...prev.payments],
       tenants: [
-        {
-          id: `ID-${Math.floor(Math.random() * 9000 + 1000)}`,
-          name: contractForm.tenant,
-          nationality: 'غير محدد',
-          phone: contractForm.phone,
-          company: contractForm.company || 'مستأجر جديد',
-          status: 'نشط'
-        },
+        newTenant,
         ...prev.tenants
       ]
     }));
 
     setContractForm(emptyContractForm);
     setEditingContractId(null);
-    setContractMessage(uploadMessages.length
+    setContractMessage(databaseMessage || (uploadMessages.length
       ? `تم حفظ العقد، لكن تعذر رفع ${uploadMessages.join(' و')}. تحقق من إعدادات Supabase ثم أعد إرفاقه.`
-      : 'تم حفظ العقد وإنشاء جدول الدفعات');
+      : 'تم حفظ العقد وإنشاء جدول الدفعات'));
     setActivePage('contracts');
   };
 
