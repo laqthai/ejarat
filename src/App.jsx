@@ -39,6 +39,8 @@ const emptyContractForm = {
   customPropertyType: '',
   property: '',
   address: '',
+  latitude: '',
+  longitude: '',
   startDate: '',
   endDate: '',
   rent: '',
@@ -77,6 +79,8 @@ function App() {
   const [contractForm, setContractForm] = useState(emptyContractForm);
   const [editingContractId, setEditingContractId] = useState(null);
   const [paidAmountInput, setPaidAmountInput] = useState('');
+  const [paymentAmountInput, setPaymentAmountInput] = useState('');
+  const [paymentDueInput, setPaymentDueInput] = useState('');
   const [loginForm, setLoginForm] = useState({ username: 'admin', password: '' });
   const [loginMessage, setLoginMessage] = useState('');
   const [contractMessage, setContractMessage] = useState('');
@@ -187,6 +191,16 @@ function App() {
     return months || (frequency === 'سنوي' ? 12 : 1);
   };
 
+  const getAttachmentUrl = (attachment) => {
+    if (!attachment) return '';
+    if (typeof attachment === 'string') return attachment;
+    return attachment.url || attachment.data || '';
+  };
+
+  const getMapUrl = (latitude, longitude) => (
+    latitude && longitude ? `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}` : ''
+  );
+
   const startEditContract = (contract) => {
     const propertyOptions = ['محل تجاري', 'مكتب', 'مخزن', 'مستودع'];
     const isCustomProperty = !propertyOptions.includes(contract.propertyType);
@@ -200,6 +214,8 @@ function App() {
       customPropertyType: isCustomProperty ? contract.propertyType : '',
       property: contract.property || '',
       address: contract.address || '',
+      latitude: contract.latitude || '',
+      longitude: contract.longitude || '',
       startDate: contract.startDate || '',
       endDate: contract.endDate || '',
       rent: contract.rent || contract.total || '',
@@ -230,6 +246,23 @@ function App() {
         return { ...contract, paymentStatus: safePaid >= Number(payment.amount || 0) ? 'مكتمل' : safePaid > 0 ? 'جزئي' : 'متأخر' };
       })
     }));
+  };
+
+  const savePaymentDetails = (invoice) => {
+    const amount = Math.max(0, Number(paymentAmountInput || 0));
+    const due = paymentDueInput;
+    if (!due || !amount) return;
+
+    setData((prev) => ({
+      ...prev,
+      payments: prev.payments.map((payment) => {
+        if (payment.invoice !== invoice) return payment;
+        const safePaid = Math.min(Number(payment.paid || 0), amount);
+        const status = safePaid >= amount ? 'مدفوع' : safePaid > 0 ? 'جزئي' : 'متأخر';
+        return { ...payment, amount, due, paid: safePaid, status };
+      })
+    }));
+    setPaidAmountInput('');
   };
 
   const addContract = async () => {
@@ -281,6 +314,8 @@ function App() {
       propertyType,
       property: contractForm.property,
       address: contractForm.address,
+      latitude: contractForm.latitude,
+      longitude: contractForm.longitude,
       startDate: contractForm.startDate,
       endDate: contractForm.endDate,
       rent,
@@ -595,17 +630,20 @@ function App() {
 
           <div className="panel">
             <h3>خريطة العقار</h3>
-            {selectedContract.propertyImage && <img src={selectedContract.propertyImage.url || selectedContract.propertyImage} alt="صورة العقار" className="property-image" />}
+            {getAttachmentUrl(selectedContract.propertyImage) && <img src={getAttachmentUrl(selectedContract.propertyImage)} alt="صورة العقار" className="property-image" />}
             <div className="map-box">
               <span>📍</span>
               <p>{selectedContract.address}</p>
             </div>
             <div className="form-grid small-gap">
-              <label><span>موقع العقار</span><input type="text" value="الرياض - حي النرجس" readOnly /></label>
-              <label><span>الإحداثيات</span><input type="text" value="24.7136, 46.6753" readOnly /></label>
+              <label><span>خط العرض Latitude</span><input type="text" value={selectedContract.latitude || 'غير محدد'} readOnly /></label>
+              <label><span>خط الطول Longitude</span><input type="text" value={selectedContract.longitude || 'غير محدد'} readOnly /></label>
             </div>
+            {selectedContract.latitude && selectedContract.longitude && (
+              <a className="primary-btn small map-link" href={`https://www.google.com/maps/search/?api=1&query=${selectedContract.latitude},${selectedContract.longitude}`} target="_blank" rel="noreferrer">فتح الموقع في Google Maps</a>
+            )}
             {selectedContract.contractFile && (
-              <a className="uploaded-file detail-file" href={selectedContract.contractFile.url || selectedContract.contractFile} target="_blank" rel="noreferrer">
+              <a className="uploaded-file detail-file" href={getAttachmentUrl(selectedContract.contractFile)} target="_blank" rel="noreferrer">
                 فتح ملف العقد: {selectedContract.contractFile.name || 'المرفق'}
               </a>
             )}
@@ -725,6 +763,18 @@ function App() {
               <div><span>المبلغ المدفوع</span><strong>{formatMoney(selectedPayment.paid)}</strong></div>
               <div><span>المتبقي</span><strong>{formatMoney(Math.max(selectedPayment.amount - selectedPayment.paid, 0))}</strong></div>
               <div><span>الحالة</span><strong>{selectedPayment.status}</strong></div>
+            </div>
+
+            <div className="payment-edit-form">
+              <label>
+                <span>مبلغ الدفعة</span>
+                <input type="number" min="0" value={paymentAmountInput === '' ? selectedPayment.amount : paymentAmountInput} onChange={(event) => setPaymentAmountInput(event.target.value)} />
+              </label>
+              <label>
+                <span>تاريخ الاستحقاق</span>
+                <input type="date" value={paymentDueInput || selectedPayment.due} onChange={(event) => setPaymentDueInput(event.target.value)} />
+              </label>
+              <button className="primary-btn small" onClick={() => savePaymentDetails(selectedPayment.invoice)}>حفظ تفاصيل الدفعة</button>
             </div>
 
             <div className="paid-amount-form">
@@ -873,6 +923,14 @@ function App() {
             <input type="text" value={contractForm.address} onChange={(e) => setContractForm({ ...contractForm, address: e.target.value })} />
           </label>
           <label>
+            <span>خط العرض Latitude</span>
+            <input type="number" step="any" placeholder="24.7136" value={contractForm.latitude} onChange={(e) => setContractForm({ ...contractForm, latitude: e.target.value })} />
+          </label>
+          <label>
+            <span>خط الطول Longitude</span>
+            <input type="number" step="any" placeholder="46.6753" value={contractForm.longitude} onChange={(e) => setContractForm({ ...contractForm, longitude: e.target.value })} />
+          </label>
+          <label>
             <span>تاريخ بداية العقد</span>
             <input type="date" value={contractForm.startDate} onChange={(e) => setContractForm({ ...contractForm, startDate: e.target.value })} />
           </label>
@@ -988,6 +1046,8 @@ function App() {
                       className="table-btn"
                       onClick={() => {
                         setSelectedPaymentInvoice(pay.invoice);
+                        setPaymentAmountInput(String(pay.amount || 0));
+                        setPaymentDueInput(pay.due || '');
                         setPaidAmountInput(String(pay.paid || 0));
                         setActivePage('payment-detail');
                       }}

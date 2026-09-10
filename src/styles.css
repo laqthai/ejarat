@@ -629,6 +629,25 @@ label input[type="file"] {
   margin-top: 22px;
 }
 
+.payment-edit-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.payment-edit-form label {
+  flex: 1;
+}
+
+.map-link {
+  display: inline-flex;
+  text-decoration: none;
+  margin-top: 12px;
+}
+
 .detail-summary,
 .detail-bottom-grid {
   display: grid;
@@ -906,6 +925,11 @@ label input[type="file"] {
   }
 
   .paid-amount-form {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .payment-edit-form {
     align-items: stretch;
     flex-direction: column;
   }
