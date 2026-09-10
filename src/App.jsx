@@ -127,6 +127,15 @@ function App() {
     [data.payments]
   );
 
+  const monthlyRevenue = useMemo(() => {
+    const today = new Date();
+    return data.payments.reduce((sum, payment) => {
+      const referenceDate = new Date(payment.paidAt || payment.due);
+      const isCurrentMonth = referenceDate.getFullYear() === today.getFullYear() && referenceDate.getMonth() === today.getMonth();
+      return isCurrentMonth ? sum + Number(payment.paid || 0) : sum;
+    }, 0);
+  }, [data.payments]);
+
   const selectedContract = useMemo(
     () => data.contracts.find((item) => item.id === selectedContractId) ?? data.contracts[0],
     [data.contracts, selectedContractId]
@@ -273,7 +282,7 @@ function App() {
         if (payment.invoice !== invoice) return payment;
         const safePaid = Math.min(paid, Number(payment.amount || 0));
         const status = safePaid >= Number(payment.amount || 0) ? 'مدفوع' : safePaid > 0 ? 'جزئي' : 'متأخر';
-        return { ...payment, paid: safePaid, status };
+        return { ...payment, paid: safePaid, paidAt: safePaid > 0 ? new Date().toISOString().slice(0, 10) : null, status };
       }),
       contracts: prev.contracts.map((contract) => {
         const payment = prev.payments.find((item) => item.invoice === invoice);
@@ -295,7 +304,7 @@ function App() {
         if (payment.invoice !== invoice) return payment;
         const safePaid = Math.min(Number(payment.paid || 0), amount);
         const status = safePaid >= amount ? 'مدفوع' : safePaid > 0 ? 'جزئي' : 'متأخر';
-        return { ...payment, amount, due, paid: safePaid, status };
+        return { ...payment, amount, due, paid: safePaid, paidAt: safePaid > 0 ? new Date().toISOString().slice(0, 10) : null, status };
       })
     }));
     setPaidAmountInput('');
@@ -425,7 +434,7 @@ function App() {
       ...prev,
       payments: prev.payments.map((payment) => {
         if (payment.invoice !== invoice) return payment;
-        return { ...payment, status: 'مدفوع', paid: payment.amount };
+        return { ...payment, status: 'مدفوع', paid: payment.amount, paidAt: new Date().toISOString().slice(0, 10) };
       }),
       contracts: prev.contracts.map((contract) => {
         const matched = prev.payments.find((payment) => payment.invoice === invoice);
@@ -671,7 +680,7 @@ function App() {
           <div className="report-grid">
             <div className="report-card green">
               <span>إيراد شهري</span>
-              <strong>{formatMoney(528000)}</strong>
+              <strong>{formatMoney(monthlyRevenue)}</strong>
             </div>
             <div className="report-card orange">
               <span>متأخرات</span>
@@ -1228,7 +1237,7 @@ function App() {
       <div className="report-grid large">
         <div className="report-card green">
           <span>إيراد شهري</span>
-          <strong>{formatMoney(528000)}</strong>
+          <strong>{formatMoney(monthlyRevenue)}</strong>
         </div>
         <div className="report-card orange">
           <span>متأخرات</span>
