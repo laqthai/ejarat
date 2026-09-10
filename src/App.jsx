@@ -458,6 +458,46 @@ function App() {
     }));
   };
 
+  const deleteContract = async (contract) => {
+    if (!window.confirm(`هل أنت متأكد من حذف العقد ${contract.id}؟ سيتم حذف دفعاته أيضاً.`)) return;
+
+    setContractMessage('جاري حذف العقد...');
+    try {
+      if (supabase) {
+        const { data: cloudPayments, error: paymentQueryError } = await supabase
+          .from('lease_payments')
+          .select('id, payload');
+        if (paymentQueryError) throw paymentQueryError;
+
+        const paymentIds = (cloudPayments || [])
+          .filter((row) => row.payload?.contractId === contract.id)
+          .map((row) => row.id);
+
+        const { error: contractError } = await supabase.from('lease_contracts').delete().eq('id', contract.id);
+        if (contractError) throw contractError;
+
+        if (paymentIds.length) {
+          const { error: paymentError } = await supabase.from('lease_payments').delete().in('id', paymentIds);
+          if (paymentError) throw paymentError;
+        }
+
+        const paths = [contract.propertyImage?.path, contract.contractFile?.path].filter(Boolean);
+        if (paths.length) await supabase.storage.from('lease-files').remove(paths);
+      }
+
+      setData((prev) => ({
+        ...prev,
+        contracts: prev.contracts.filter((item) => item.id !== contract.id),
+        payments: prev.payments.filter((item) => item.contractId !== contract.id)
+      }));
+      setSelectedContractId(null);
+      setActivePage('contracts');
+      setContractMessage('تم حذف العقد ودفعاته بنجاح');
+    } catch (error) {
+      setContractMessage(`تعذر حذف العقد: ${error.message || 'تحقق من اتصال Supabase'}`);
+    }
+  };
+
   const renderDashboard = () => (
     <>
       <section className="hero-panel">
@@ -644,6 +684,7 @@ function App() {
           <div className="inline-actions">
             <button className="secondary-btn small" onClick={() => setActivePage('contracts')}>العودة</button>
             <button className="primary-btn small" onClick={() => startEditContract(selectedContract)}>تحديث البيانات</button>
+            <button className="table-btn danger-btn" onClick={() => deleteContract(selectedContract)}>حذف العقد</button>
           </div>
         </div>
 
@@ -909,15 +950,16 @@ function App() {
                 <td>{formatMoney(contract.total)}</td>
                 <td><span className={`status-badge ${getStatusClass(contract.status)}`}>{contract.status}</span></td>
                 <td>
-                  <button
-                    className="table-btn"
-                    onClick={() => {
-                      setSelectedContractId(contract.id);
-                      setActivePage('contract-detail');
-                    }}
-                  >
-                    عرض
-                  </button>
+                  <div className="mini-actions">
+                    <button
+                      className="table-btn"
+                      onClick={() => {
+                        setSelectedContractId(contract.id);
+                        setActivePage('contract-detail');
+                      }}
+                    >عرض</button>
+                    <button className="table-btn danger-btn" onClick={() => deleteContract(contract)}>حذف</button>
+                  </div>
                 </td>
               </tr>
             ))}

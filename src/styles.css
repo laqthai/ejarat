@@ -845,6 +845,11 @@ label input[type="file"] {
   color: var(--warning);
 }
 
+.danger-btn {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
 .mt-20 {
   margin-top: 20px;
 }
