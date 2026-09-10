@@ -39,8 +39,7 @@ const emptyContractForm = {
   customPropertyType: '',
   property: '',
   address: '',
-  latitude: '',
-  longitude: '',
+  mapUrl: '',
   startDate: '',
   endDate: '',
   rent: '',
@@ -197,9 +196,11 @@ function App() {
     return attachment.url || attachment.data || '';
   };
 
-  const getMapUrl = (latitude, longitude) => (
-    latitude && longitude ? `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}` : ''
-  );
+  const getMapUrl = (contract) => {
+    if (contract.mapUrl) return contract.mapUrl;
+    if (contract.latitude && contract.longitude) return `https://www.google.com/maps/search/?api=1&query=${contract.latitude},${contract.longitude}`;
+    return '';
+  };
 
   const startEditContract = (contract) => {
     const propertyOptions = ['محل تجاري', 'مكتب', 'مخزن', 'مستودع'];
@@ -214,8 +215,7 @@ function App() {
       customPropertyType: isCustomProperty ? contract.propertyType : '',
       property: contract.property || '',
       address: contract.address || '',
-      latitude: contract.latitude || '',
-      longitude: contract.longitude || '',
+      mapUrl: contract.mapUrl || getMapUrl(contract),
       startDate: contract.startDate || '',
       endDate: contract.endDate || '',
       rent: contract.rent || contract.total || '',
@@ -314,8 +314,7 @@ function App() {
       propertyType,
       property: contractForm.property,
       address: contractForm.address,
-      latitude: contractForm.latitude,
-      longitude: contractForm.longitude,
+      mapUrl: contractForm.mapUrl,
       startDate: contractForm.startDate,
       endDate: contractForm.endDate,
       rent,
@@ -636,11 +635,10 @@ function App() {
               <p>{selectedContract.address}</p>
             </div>
             <div className="form-grid small-gap">
-              <label><span>خط العرض Latitude</span><input type="text" value={selectedContract.latitude || 'غير محدد'} readOnly /></label>
-              <label><span>خط الطول Longitude</span><input type="text" value={selectedContract.longitude || 'غير محدد'} readOnly /></label>
+              <label><span>رابط Google Maps</span><input type="text" value={getMapUrl(selectedContract) || 'غير محدد'} readOnly /></label>
             </div>
-            {selectedContract.latitude && selectedContract.longitude && (
-              <a className="primary-btn small map-link" href={`https://www.google.com/maps/search/?api=1&query=${selectedContract.latitude},${selectedContract.longitude}`} target="_blank" rel="noreferrer">فتح الموقع في Google Maps</a>
+            {getMapUrl(selectedContract) && (
+              <a className="primary-btn small map-link" href={getMapUrl(selectedContract)} target="_blank" rel="noreferrer">فتح الموقع في Google Maps</a>
             )}
             {selectedContract.contractFile && (
               <a className="uploaded-file detail-file" href={getAttachmentUrl(selectedContract.contractFile)} target="_blank" rel="noreferrer">
@@ -923,12 +921,8 @@ function App() {
             <input type="text" value={contractForm.address} onChange={(e) => setContractForm({ ...contractForm, address: e.target.value })} />
           </label>
           <label>
-            <span>خط العرض Latitude</span>
-            <input type="number" step="any" placeholder="24.7136" value={contractForm.latitude} onChange={(e) => setContractForm({ ...contractForm, latitude: e.target.value })} />
-          </label>
-          <label>
-            <span>خط الطول Longitude</span>
-            <input type="number" step="any" placeholder="46.6753" value={contractForm.longitude} onChange={(e) => setContractForm({ ...contractForm, longitude: e.target.value })} />
+            <span>رابط موقع العقار في Google Maps</span>
+            <input type="url" placeholder="https://maps.google.com/..." value={contractForm.mapUrl} onChange={(e) => setContractForm({ ...contractForm, mapUrl: e.target.value })} />
           </label>
           <label>
             <span>تاريخ بداية العقد</span>
