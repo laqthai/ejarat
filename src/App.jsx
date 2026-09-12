@@ -57,6 +57,12 @@ const getStatusClass = (status) => {
   return 'danger';
 };
 
+const getAttachmentUrl = (attachment) => {
+  if (!attachment) return '';
+  if (typeof attachment === 'string') return attachment;
+  return attachment.url || attachment.data || '';
+};
+
 function App() {
   const [data, setData] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -145,6 +151,38 @@ function App() {
     [data.payments, selectedPaymentInvoice]
   );
 
+  const attachmentList = useMemo(() => [
+    ...data.documents.map((document) => ({
+      name: document.name,
+      type: document.type,
+      date: document.date,
+      owner: document.owner,
+      url: document.url || ''
+    })),
+    ...data.contracts.flatMap((contract) => {
+      const attachments = [];
+      if (contract.contractFile) {
+        attachments.push({
+          name: contract.contractFile.name || `عقد ${contract.id}`,
+          type: 'عقد',
+          date: contract.startDate,
+          owner: contract.tenant,
+          url: getAttachmentUrl(contract.contractFile)
+        });
+      }
+      if (contract.propertyImage) {
+        attachments.push({
+          name: contract.propertyImage.name || `صورة عقار ${contract.id}`,
+          type: 'صورة عقار',
+          date: contract.startDate,
+          owner: contract.tenant,
+          url: getAttachmentUrl(contract.propertyImage)
+        });
+      }
+      return attachments;
+    })
+  ], [data.documents, data.contracts]);
+
   const alertList = useMemo(() => {
     const list = [];
 
@@ -227,12 +265,6 @@ function App() {
     const nextDate = new Date(date);
     nextDate.setMonth(nextDate.getMonth() + months);
     return nextDate.toISOString().slice(0, 10);
-  };
-
-  const getAttachmentUrl = (attachment) => {
-    if (!attachment) return '';
-    if (typeof attachment === 'string') return attachment;
-    return attachment.url || attachment.data || '';
   };
 
   const getMapUrl = (contract) => {
@@ -802,15 +834,25 @@ function App() {
             </div>
 
             <div className="document-list">
-              {data.documents.slice(0, 3).map((doc) => (
-                <div className="document-item" key={doc.name}>
+              {selectedContract.contractFile && (
+                <a className="document-item document-link" href={getAttachmentUrl(selectedContract.contractFile)} target="_blank" rel="noreferrer">
                   <span>📄</span>
                   <div>
-                    <strong>{doc.name}</strong>
-                    <small>{doc.type}</small>
+                    <strong>{selectedContract.contractFile.name || 'ملف العقد'}</strong>
+                    <small>عقد - فتح الملف</small>
                   </div>
-                </div>
-              ))}
+                </a>
+              )}
+              {selectedContract.propertyImage && (
+                <a className="document-item document-link" href={getAttachmentUrl(selectedContract.propertyImage)} target="_blank" rel="noreferrer">
+                  <span>🖼️</span>
+                  <div>
+                    <strong>{selectedContract.propertyImage.name || 'صورة العقار'}</strong>
+                    <small>صورة عقار - فتح الصورة</small>
+                  </div>
+                </a>
+              )}
+              {!selectedContract.contractFile && !selectedContract.propertyImage && <div className="empty-state">لا توجد مستندات لهذا العقد</div>}
             </div>
           </div>
         </div>
@@ -1325,13 +1367,13 @@ function App() {
             </tr>
           </thead>
           <tbody>
-            {data.documents.map((doc) => (
-              <tr key={doc.name}>
+            {attachmentList.map((doc, index) => (
+              <tr key={`${doc.name}-${index}`}>
                 <td>{doc.name}</td>
                 <td>{doc.type}</td>
                 <td>{doc.date}</td>
                 <td>{doc.owner}</td>
-                <td><button className="table-btn">تحميل</button></td>
+                <td>{doc.url ? <a className="table-btn document-link-button" href={doc.url} target="_blank" rel="noreferrer">فتح</a> : <span>غير متاح</span>}</td>
               </tr>
             ))}
           </tbody>

@@ -786,6 +786,29 @@ label input[type="file"] {
   color: var(--muted);
 }
 
+.document-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.document-link:hover {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.document-link-button {
+  display: inline-flex;
+  text-decoration: none;
+}
+
+.empty-state {
+  padding: 18px;
+  color: var(--muted);
+  text-align: center;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+}
+
 .receipt-panel {
   margin-top: 18px;
 }
