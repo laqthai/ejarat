@@ -43,7 +43,6 @@ const emptyContractForm = {
   startDate: '',
   endDate: '',
   rent: '',
-  paymentFrequency: 'شهري',
   paymentCount: 12,
   propertyImage: null,
   contractFile: null,
@@ -230,11 +229,6 @@ function App() {
     return nextDate.toISOString().slice(0, 10);
   };
 
-  const getFrequencyMonths = (frequency) => {
-    const months = Number(String(frequency).match(/\d+/)?.[0]);
-    return months || (frequency === 'سنوي' ? 12 : 1);
-  };
-
   const getAttachmentUrl = (attachment) => {
     if (!attachment) return '';
     if (typeof attachment === 'string') return attachment;
@@ -264,7 +258,6 @@ function App() {
       startDate: contract.startDate || '',
       endDate: contract.endDate || '',
       rent: contract.rent || contract.total || '',
-      paymentFrequency: contract.paymentFrequency || 'كل شهر',
       paymentCount: contract.paymentCount || 1,
       propertyImage: null,
       contractFile: null
@@ -293,21 +286,28 @@ function App() {
     }));
   };
 
-  const savePaymentDetails = (invoice) => {
+  const savePaymentDetails = async (invoice) => {
     const amount = Math.max(0, Number(paymentAmountInput || 0));
     const due = paymentDueInput;
     if (!due || !amount) return;
+    const currentPayment = data.payments.find((item) => item.invoice === invoice);
+    if (!currentPayment) return;
+    const paid = Math.min(Number(currentPayment.paid || 0), amount);
+    const status = paid >= amount ? 'مدفوع' : paid > 0 ? 'جزئي' : 'متأخر';
+    const updatedPayment = { ...currentPayment, amount, due, paid, status };
 
     setData((prev) => ({
       ...prev,
       payments: prev.payments.map((payment) => {
         if (payment.invoice !== invoice) return payment;
-        const safePaid = Math.min(Number(payment.paid || 0), amount);
-        const status = safePaid >= amount ? 'مدفوع' : safePaid > 0 ? 'جزئي' : 'متأخر';
-        return { ...payment, amount, due, paid: safePaid, paidAt: safePaid > 0 ? new Date().toISOString().slice(0, 10) : null, status };
+        return { ...updatedPayment, paidAt: paid > 0 ? new Date().toISOString().slice(0, 10) : null };
       })
     }));
     setPaidAmountInput('');
+
+    if (supabase) {
+      await supabase.from('lease_payments').upsert({ id: invoice, payload: updatedPayment });
+    }
   };
 
   const addContract = async () => {
@@ -324,8 +324,6 @@ function App() {
       return;
     }
     const paymentCount = Math.max(1, Number(contractForm.paymentCount || 1));
-    const frequencyMonths = getFrequencyMonths(contractForm.paymentFrequency);
-
     setContractMessage('جاري حفظ العقد ورفع المرفقات...');
 
     let uploadedImage;
@@ -364,7 +362,6 @@ function App() {
       endDate: contractForm.endDate,
       rent,
       total: rent,
-      paymentFrequency: contractForm.paymentFrequency,
       paymentCount,
       propertyImage: uploadedImage || existingContract?.propertyImage || null,
       contractFile: uploadedContract || existingContract?.contractFile || null,
@@ -376,7 +373,7 @@ function App() {
       invoice: `INV-${Math.floor(Math.random() * 90000 + 10000)}-${index + 1}`,
       contractId: newContract.id,
       tenant: newContract.tenant,
-      due: addMonths(contractForm.startDate, index * frequencyMonths),
+      due: contractForm.startDate,
       amount: Math.round((rent / paymentCount) * 100) / 100,
       paid: 0,
       status: 'متأخر'
@@ -741,7 +738,6 @@ function App() {
               <div><span>تاريخ البداية</span><strong>{selectedContract.startDate}</strong></div>
               <div><span>تاريخ النهاية</span><strong>{selectedContract.endDate}</strong></div>
               <div><span>قيمة العقد</span><strong>{formatMoney(selectedContract.total)}</strong></div>
-              <div><span>دورية الدفعات</span><strong>{selectedContract.paymentFrequency || 'شهري'}</strong></div>
               <div><span>عدد الدفعات</span><strong>{selectedContract.paymentCount || 'غير محدد'}</strong></div>
             </div>
           </div>
@@ -1055,16 +1051,6 @@ function App() {
           <label>
             <span>قيمة العقد</span>
             <input type="number" value={contractForm.rent} onChange={(e) => setContractForm({ ...contractForm, rent: e.target.value })} />
-          </label>
-          <label>
-            <span>دورية الدفعات</span>
-            <select value={contractForm.paymentFrequency} onChange={(e) => setContractForm({ ...contractForm, paymentFrequency: e.target.value })}>
-              {Array.from({ length: 12 }, (_, index) => {
-                const months = index + 1;
-                const label = months === 1 ? 'كل شهر' : months === 2 ? 'كل شهرين' : months === 12 ? 'سنوي' : `كل ${months} أشهر`;
-                return <option key={months} value={label}>{label}</option>;
-              })}
-            </select>
           </label>
           <label>
             <span>عدد الدفعات</span>
